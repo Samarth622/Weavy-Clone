@@ -5,18 +5,39 @@ import {
   Brain,
   Crop,
   Scissors,
-} from 'lucide-react';
+} from "lucide-react";
+
+interface SidebarProps {
+  setNodes: any;
+}
 
 const nodes = [
-  { label: "Text", icon: Type },
-  { label: "Upload Image", icon: Image },
-  { label: "Upload Video", icon: Video },
-  { label: "LLM", icon: Brain },
-  { label: "Crop Image", icon: Crop },
-  { label: "Extract Frame", icon: Scissors },
+  { label: "Text", icon: Type, type: "prompt" },
+  { label: "Upload Image", icon: Image, type: "uploadImage" },
+  { label: "Upload Video", icon: Video, type: "uploadVideo" },
+  { label: "LLM", icon: Brain, type: "llm" },
+  { label: "Crop Image", icon: Crop, type: "crop" },
+  { label: "Extract Frame", icon: Scissors, type: "extract" },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ setNodes }: SidebarProps) {
+
+  const addNode = (type: string) => {
+    console.log("Adding node:", type);
+    setNodes((prev: any[]) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        type,
+        position: {
+          x: Math.random() * 400 + 200,
+          y: Math.random() * 300 + 100,
+        },
+        data: {},
+      },
+    ]);
+  };
+
   return (
     <div className="h-full flex flex-col px-4 py-5">
       
@@ -30,6 +51,7 @@ export default function Sidebar() {
           return (
             <button
               key={node.label}
+              onClick={() => addNode(node.type)}
               className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium rounded-md 
                          bg-transparent hover:bg-[#1c1c1c] transition-colors"
             >
