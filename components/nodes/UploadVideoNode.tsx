@@ -3,11 +3,12 @@
 import { Upload } from "lucide-react";
 import NodeShell from "./NodeShell";
 
-export default function UploadVideoNode({ id, onDelete }: any) {
+export default function UploadVideoNode({ id, onDelete, data }: any) {
   return (
     <NodeShell
       id={id}
       onDelete={onDelete}
+      status={data?.status}
       title="Video"
       rightLabel="Video"
       rightColor="#ef4444"

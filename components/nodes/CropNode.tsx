@@ -2,13 +2,14 @@
 
 import NodeShell from "./NodeShell";
 
-export default function CropNode({ id, onDelete }: any) {
+export default function CropNode({ id, onDelete, data }: any) {
   return (
     <NodeShell
       id={id}
       onDelete={onDelete}
       title="Crop"
       leftLabel="File"
+      status={data?.status}
       rightLabel="File"
       leftColor="#f97316"
       rightColor="#e5e5e5"

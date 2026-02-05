@@ -6,6 +6,7 @@ interface NodeShellProps {
   title: string;
   children: React.ReactNode;
   onDelete?: (id: string) => void;
+  status?: "idle" | "running" | "success" | "error";
   leftLabel?: string;
   rightLabel?: string;
   leftColor?: string;
@@ -17,13 +18,26 @@ export default function NodeShell({
   title,
   children,
   onDelete,
+  status,
   leftLabel,
   rightLabel,
   leftColor = "#7C3AED",
   rightColor = "#7C3AED",
 }: NodeShellProps) {
+
+  const borderClass =
+    status === "running"
+      ? "border-purple-500 animate-pulse"
+      : status === "success"
+        ? "border-green-500"
+        : status === "error"
+          ? "border-red-500"
+          : "border-[#2a2a2a]";
+
   return (
-    <div className="relative bg-[#1b1b1b] border border-[#2a2a2a] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[260px]">
+    <div
+      className={`relative bg-[#1b1b1b] border ${borderClass} rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[260px]`}
+    >
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">

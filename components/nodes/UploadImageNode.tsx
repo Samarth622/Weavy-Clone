@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Upload, ChevronDown, ChevronUp } from "lucide-react";
 import NodeShell from "./NodeShell";
 
-export default function UploadImageNode({ id, onDelete }: any) {
+export default function UploadImageNode({ id, onDelete, data }: any) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -12,6 +12,7 @@ export default function UploadImageNode({ id, onDelete }: any) {
       title="File"
       rightLabel="File"
       rightColor="#e5e5e5"
+      status={data?.status}
     >
       {/* Toggle Button */}
       <div className="flex justify-end mb-2">

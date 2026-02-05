@@ -4,13 +4,24 @@ import { Handle, Position } from "reactflow";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useState } from "react";
 
-export default function LLMNode({ id, onDelete }: any) {
-  console.log("LLM ID:", id);
+export default function LLMNode({ id, onDelete, data }: any) {
   const [model, setModel] = useState("gemini-1.5-flash");
 
-  return (
-    <div className="relative bg-[#1b1b1b] border border-[#2a2a2a] rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[340px]">
+  const status = data?.status || "idle";
 
+  return (
+    <div
+      className={`relative bg-[#1b1b1b] border rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[340px]
+    ${status === "running"
+          ? "border-purple-500 animate-pulse"
+          : status === "success"
+            ? "border-green-500"
+            : status === "error"
+              ? "border-red-500"
+              : "border-[#2a2a2a]"
+        }
+  `}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
         <span className="text-sm font-medium text-gray-200">

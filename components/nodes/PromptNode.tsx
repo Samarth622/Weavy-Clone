@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import NodeShell from "./NodeShell";
 
-export default function PromptNode({ id, onDelete }: any) {
+export default function PromptNode({ id, onDelete, data }: any) {
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -22,6 +22,7 @@ export default function PromptNode({ id, onDelete }: any) {
     <NodeShell
       id={id}
       onDelete={onDelete}
+      status={data?.status}
       title="Prompt"
       rightLabel="Prompt"
       rightColor="#7C3AED"

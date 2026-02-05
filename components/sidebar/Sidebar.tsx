@@ -23,24 +23,23 @@ const nodes = [
 export default function Sidebar({ setNodes }: SidebarProps) {
 
   const addNode = (type: string) => {
-    console.log("Adding node:", type);
     setNodes((prev: any[]) => [
       ...prev,
       {
         id: crypto.randomUUID(),
         type,
-        position: {
-          x: Math.random() * 400 + 200,
-          y: Math.random() * 300 + 100,
+        position: { x: 300, y: 200 },
+        data: {
+          status: "idle",
+          result: null,
         },
-        data: {},
       },
     ]);
   };
 
   return (
     <div className="h-full flex flex-col px-4 py-5">
-      
+
       <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
         Nodes
       </div>

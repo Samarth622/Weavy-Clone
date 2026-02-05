@@ -2,13 +2,14 @@
 
 import NodeShell from "./NodeShell";
 
-export default function ExtractFrameNode({ id, onDelete }: any) {
+export default function ExtractFrameNode({ id, onDelete , data }: any) {
   return (
     <NodeShell
       id={id}
       onDelete={onDelete}
       title="Extract Video Frame"
       leftLabel="Video"
+      status={data?.status}
       rightLabel="Frame"
       leftColor="#ef4444"
       rightColor="#10b981"
