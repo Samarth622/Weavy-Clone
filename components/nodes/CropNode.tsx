@@ -1,43 +1,66 @@
 "use client";
 
+import { useReactFlow } from "reactflow";
 import NodeShell from "./NodeShell";
 
 export default function CropNode({ id, onDelete, data }: any) {
+  const { setNodes } = useReactFlow();
+
+  const handleModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                mode: value,
+              },
+            }
+          : node
+      )
+    );
+  };
+
   return (
     <NodeShell
       id={id}
       onDelete={onDelete}
-      title="Crop"
-      leftLabel="File"
       status={data?.status}
-      rightLabel="File"
-      leftColor="#f97316"
-      rightColor="#e5e5e5"
+      title="Crop Image"
+      leftLabel="Image"
+      rightLabel="Cropped"
+      leftColor="#f59e0b"
+      rightColor="#10b981"
     >
-      {/* Preview */}
-      <div className="bg-[linear-gradient(45deg,#2a2a2a_25%,transparent_25%),linear-gradient(-45deg,#2a2a2a_25%,transparent_25%)] 
-                      bg-[size:20px_20px] 
-                      h-64 rounded-md mb-4" />
+      <div className="space-y-4">
 
-      {/* Controls */}
-      <div className="space-y-3 text-xs text-gray-400">
-        <div className="flex items-center justify-between">
-          <span>Aspect ratio</span>
-          <select className="bg-[#222] border border-[#2a2a2a] px-2 py-1 rounded text-xs">
-            <option>Custom</option>
-          </select>
-        </div>
+        {/* Mode Selector */}
+        <select
+          value={data?.mode || "full"}
+          onChange={handleModeChange}
+          className="w-full bg-[#222] border border-[#2a2a2a] px-3 py-2 rounded text-sm text-gray-200"
+        >
+          <option value="full">Full Image</option>
+          <option value="1:1">Square (1:1)</option>
+          <option value="16:9">16:9</option>
+          <option value="4:3">4:3</option>
+        </select>
 
-        <div className="flex gap-2">
-          <input
-            className="bg-[#222] border border-[#2a2a2a] px-2 py-1 rounded w-full"
-            placeholder="W 1024"
+        {/* Preview */}
+        {data?.result ? (
+          <img
+            src={data.result}
+            alt="Cropped"
+            className="w-full rounded-md border border-[#2a2a2a]"
           />
-          <input
-            className="bg-[#222] border border-[#2a2a2a] px-2 py-1 rounded w-full"
-            placeholder="H 1024"
-          />
-        </div>
+        ) : (
+          <div className="h-40 flex items-center justify-center text-xs text-gray-500 border border-[#2a2a2a] rounded-md">
+            No crop applied yet
+          </div>
+        )}
       </div>
     </NodeShell>
   );

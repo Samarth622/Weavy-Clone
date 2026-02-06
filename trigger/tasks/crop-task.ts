@@ -1,5 +1,4 @@
 import { task } from "@trigger.dev/sdk/v3";
-import ffmpegPath from "ffmpeg-static";
 import { spawn } from "child_process";
 import fs from "fs";
 import path from "path";
@@ -9,12 +8,16 @@ export const cropTask = task({
   id: "crop-task",
   run: async (payload: {
     image: string;
-    width: number;
-    height: number;
-    x: number;
-    y: number;
+    mode: "full" | "1:1" | "16:9" | "4:3";
   }) => {
-    const { image, width, height, x, y } = payload;
+    const { image, mode } = payload;
+
+    // If full image selected, skip cropping
+    if (mode === "full") {
+      return image;
+    }
+
+    const ffmpegPath = "C:\\Users\\gupta\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe";
 
     const base64Data = image.split(",")[1];
     const buffer = Buffer.from(base64Data, "base64");
@@ -25,21 +28,74 @@ export const cropTask = task({
 
     fs.writeFileSync(inputPath, buffer);
 
+    // First: get image dimensions using ffprobe
+    const dimensions = await new Promise<{ width: number; height: number }>(
+      (resolve, reject) => {
+        const probe = spawn(ffmpegPath, [
+          "-i",
+          inputPath,
+        ]);
+
+        let stderr = "";
+
+        probe.stderr.on("data", (data) => {
+          stderr += data.toString();
+        });
+
+        probe.on("close", () => {
+          const match = stderr.match(/, (\d+)x(\d+)/);
+          if (!match) return reject(new Error("Could not detect dimensions"));
+
+          resolve({
+            width: parseInt(match[1]),
+            height: parseInt(match[2]),
+          });
+        });
+
+        probe.on("error", reject);
+      }
+    );
+
+    const { width: imgW, height: imgH } = dimensions;
+
+    let cropW = imgW;
+    let cropH = imgH;
+
+    const ratioMap: any = {
+      "1:1": 1,
+      "16:9": 16 / 9,
+      "4:3": 4 / 3,
+    };
+
+    const targetRatio = ratioMap[mode];
+
+    if (imgW / imgH > targetRatio) {
+      cropH = imgH;
+      cropW = imgH * targetRatio;
+    } else {
+      cropW = imgW;
+      cropH = imgW / targetRatio;
+    }
+
+    const x = Math.floor((imgW - cropW) / 2);
+    const y = Math.floor((imgH - cropH) / 2);
+
     await new Promise<void>((resolve, reject) => {
-      const ffmpeg = spawn(ffmpegPath as string, [
+      const ffmpegProcess = spawn(ffmpegPath, [
+        "-y",
         "-i",
         inputPath,
         "-filter:v",
-        `crop=${width}:${height}:${x}:${y}`,
+        `crop=${Math.floor(cropW)}:${Math.floor(cropH)}:${x}:${y}`,
         outputPath,
       ]);
 
-      ffmpeg.on("close", (code) => {
+      ffmpegProcess.on("close", (code) => {
         if (code === 0) resolve();
-        else reject(new Error("FFmpeg failed"));
+        else reject(new Error(`Crop failed with code ${code}`));
       });
 
-      ffmpeg.on("error", reject);
+      ffmpegProcess.on("error", reject);
     });
 
     const outputBuffer = fs.readFileSync(outputPath);

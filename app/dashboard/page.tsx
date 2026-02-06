@@ -8,6 +8,7 @@ export default function DashboardPage() {
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
   const [runHistory, setRunHistory] = useState<any[]>([]);
+  const [workflowName, setWorkflowName] = useState("Untitled Workflow");
 
   const replayRun = useCallback((run: any) => {
     setNodes((nds) =>
@@ -167,6 +168,24 @@ export default function DashboardPage() {
               if (!response.ok) throw new Error(data.error);
 
               output = data;
+            } else if (node.type === "crop") {
+              const parentImageNode = nodeSnapshot.find(n =>
+                edgeSnapshot.some(e => e.target === nodeId && e.source === n.id)
+              );
+
+              const imageInput = parentImageNode?.data?.image || parentImageNode?.data?.result;
+
+              const response = await fetch("/api/trigger-crop", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  image: imageInput,
+                  mode: node.data?.mode || "full",
+                }),
+              });
+
+              const data = await response.json();
+              output = data;
             } else {
               // Simulated execution
               await new Promise((res) => setTimeout(res, 800));
@@ -275,9 +294,12 @@ export default function DashboardPage() {
 
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
           <div className="h-14 border-b border-[#1f1f1f] flex items-center justify-between px-6">
-            <div className="text-sm text-gray-400">
-              Untitled Workflow
-            </div>
+            <input
+              value={workflowName}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm text-gray-300 font-medium"
+            />
+
             <button
               onClick={runWorkflow}
               className="bg-[#7C3AED] px-4 py-2 rounded-md"
