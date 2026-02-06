@@ -1,14 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
+import { useReactFlow } from "reactflow";
 import NodeShell from "./NodeShell";
 
 export default function PromptNode({ id, onDelete, data }: any) {
-  const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { setNodes } = useReactFlow();
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    const value = e.target.value;
+
+    // ✅ Proper React Flow update
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                prompt: value,
+              },
+            }
+          : node
+      )
+    );
 
     // Auto resize
     if (textareaRef.current) {
@@ -29,7 +45,7 @@ export default function PromptNode({ id, onDelete, data }: any) {
     >
       <textarea
         ref={textareaRef}
-        value={text}
+        value={data?.prompt || ""}
         onChange={handleChange}
         placeholder="Write your prompt..."
         className="w-full bg-[#222] text-gray-200 text-sm 
