@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { task } from "@trigger.dev/sdk/v3";
 
-export async function POST(req: Request) {
-  try {
-    const { prompt, image, model } = await req.json();
+export const llmTask = task({
+  id: "llm-task",
+  run: async (payload: {
+    prompt: string;
+    image?: string | null;
+  }) => {
+    const { prompt, image } = payload;
 
-    const selectedModel = model || "gemini-2.5-flash";
+    const selectedModel = "gemini-2.5-flash";
 
     let body: any;
 
@@ -32,11 +36,7 @@ export async function POST(req: Request) {
       body = {
         contents: [
           {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
+            parts: [{ text: prompt }],
           },
         ],
       };
@@ -57,25 +57,17 @@ export async function POST(req: Request) {
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("Gemini Error:", data);
-      return NextResponse.json(
-        { error: data.error?.message || "Gemini error" },
-        { status: 500 }
-      );
+      throw new Error(data.error?.message || "Gemini error");
     }
 
     const text =
       data.candidates?.[0]?.content?.parts
-        ?.map((part: any) => part.text)
+        ?.map((p: any) => p.text)
         ?.filter(Boolean)
         ?.join("") || "No response";
 
-    return NextResponse.json({ result: text });
-  } catch (error: any) {
-    console.error(error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
-  }
-}
+    console.log(text)
+
+    return text;
+  },
+});

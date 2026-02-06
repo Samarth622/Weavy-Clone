@@ -133,22 +133,20 @@ export default function DashboardPage() {
                 textInputs.join("\n") || "Describe this image.";
 
 
-              const response = await fetch("/api/llm", {
+              const response = await fetch("/api/trigger-llm", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   prompt: finalPrompt,
                   image: imageInput?.data?.image || null,
-                  model:
-                    node.data?.model || "gemini-2.5-flash",
                 }),
               });
 
               const data = await response.json();
-              
               if (!response.ok) throw new Error(data.error);
 
-              output = data.result;
+              output = data;
+
             } else {
               // Simulated execution
               await new Promise((res) => setTimeout(res, 800));
