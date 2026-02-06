@@ -66,8 +66,6 @@ export const llmTask = task({
         ?.filter(Boolean)
         ?.join("") || "No response";
 
-    console.log(text)
-
     return text;
   },
 });

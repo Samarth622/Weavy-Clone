@@ -1,27 +1,71 @@
 "use client";
 
+import { useReactFlow } from "reactflow";
 import { Upload } from "lucide-react";
 import NodeShell from "./NodeShell";
 
-export default function UploadVideoNode({ id, onDelete, data }: any) {
+export default function UploadVideoNode({ id, data, onDelete }: any) {
+  const { setNodes } = useReactFlow();
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const base64 = reader.result as string;
+
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  video: base64,
+                  fileName: file.name,
+                },
+              }
+            : node
+        )
+      );
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   return (
     <NodeShell
       id={id}
       onDelete={onDelete}
       status={data?.status}
-      title="Video"
+      title="Upload Video"
       rightLabel="Video"
-      rightColor="#ef4444"
+      rightColor="#3b82f6"
     >
-      <div className="relative flex items-center justify-center 
-                      bg-[linear-gradient(45deg,#2a2a2a_25%,transparent_25%),linear-gradient(-45deg,#2a2a2a_25%,transparent_25%)] 
-                      bg-[size:20px_20px] 
-                      h-64 rounded-md mb-4">
+      <div className="space-y-4">
 
-        <div className="flex flex-col items-center text-gray-400 text-sm">
-          <Upload size={20} className="mb-2" />
-          <span>Drag & drop video</span>
-        </div>
+        {/* Upload Button */}
+        <label className="flex items-center justify-center gap-2 bg-[#222] hover:bg-[#2a2a2a] border border-[#2a2a2a] rounded-md px-4 py-3 text-sm text-gray-300 cursor-pointer transition">
+          <Upload size={16} />
+          {data?.fileName || "Choose Video"}
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleUpload}
+            className="hidden"
+          />
+        </label>
+
+        {/* Preview */}
+        {data?.video && (
+          <video
+            src={data.video}
+            controls
+            className="w-full max-h-[180px] rounded-md border border-[#2a2a2a]"
+          />
+        )}
       </div>
     </NodeShell>
   );

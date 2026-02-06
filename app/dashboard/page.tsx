@@ -147,6 +147,26 @@ export default function DashboardPage() {
 
               output = data;
 
+            } else if (node.type === "extract") {
+              const parentVideoNode = nodeSnapshot.find(n =>
+                edgeSnapshot.some(e => e.target === nodeId && e.source === n.id)
+              );
+
+              const videoInput = parentVideoNode?.data?.video;
+
+              const response = await fetch("/api/trigger-extract-frame", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  video: videoInput,
+                  timestamp: 1, // 1 second
+                }),
+              });
+
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.error);
+
+              output = data;
             } else {
               // Simulated execution
               await new Promise((res) => setTimeout(res, 800));
