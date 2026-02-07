@@ -1,6 +1,17 @@
 import prisma from "@/lib/prisma";
+import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+    const { userId } = await auth();
+
+    if (!userId) {
+        return NextResponse.json(
+            { error: "Unauthorized" },
+            { status: 401 }
+        );
+    }
+
     try {
         const { name, nodes, edges } = await req.json();
 
@@ -9,6 +20,7 @@ export async function POST(req: Request) {
                 name,
                 nodes,
                 edges,
+                userId
             },
         });
 
@@ -22,9 +34,19 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-    const workflows = await prisma.workflow.findMany({
-        orderBy: { createdAt: "desc" },
-    });
+  const { userId } = await auth();
 
-    return Response.json(workflows);
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const workflows = await prisma.workflow.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json(workflows);
 }

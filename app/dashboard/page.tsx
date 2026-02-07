@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/sidebar/Sidebar";
 import WorkflowCanvas from "@/components/canvas/WorkflowCanvas";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
 
 export default function DashboardPage() {
   const [nodes, setNodes] = useState<any[]>([]);
@@ -11,19 +14,44 @@ export default function DashboardPage() {
   const [savedWorkflows, setSavedWorkflows] = useState<any[]>([]);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const router = useRouter();
+
+  const { user, isLoaded } = useUser();
 
   // ------------------------
   // Load Saved Workflows
   // ------------------------
   const loadWorkflows = async () => {
-    const res = await fetch("/api/workflows");
-    const data = await res.json();
-    setSavedWorkflows(data);
+    try {
+      const res = await fetch("/api/workflows");
+
+      const text = await res.text();
+
+      if (!text) {
+        console.warn("Empty response from API");
+        return;
+      }
+
+      const data = JSON.parse(text);
+      setSavedWorkflows(data);
+    } catch (err) {
+      console.error("Failed to load workflows:", err);
+    }
   };
 
+
   useEffect(() => {
-    loadWorkflows();
-  }, []);
+  if (!isLoaded) return;
+
+  if (!user) {
+    router.push("/sign-in");
+    return;
+  }
+
+  loadWorkflows();
+}, [isLoaded, user]);
+
+
 
   // ------------------------
   // Create New Workflow
@@ -39,26 +67,40 @@ export default function DashboardPage() {
   // Save Workflow
   // ------------------------
   const handleSaveWorkflow = async () => {
-    const res = await fetch("/api/workflows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: workflowId,
-        name: workflowName,
-        nodes,
-        edges,
-      }),
-    });
+    try {
+      const res = await fetch("/api/workflows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: workflowId,
+          name: workflowName,
+          nodes,
+          edges,
+        }),
+      });
 
-    const data = await res.json();
+      const text = await res.text(); // safer
 
-    if (res.ok) {
-      setWorkflowId(data.id); // important
-      loadWorkflows();
-    } else {
-      alert(data.error || "Failed to save workflow");
+      if (!text) {
+        alert("Empty response from server");
+        return;
+      }
+
+      const data = JSON.parse(text);
+
+      if (res.ok) {
+        setWorkflowId(data.id);
+        loadWorkflows();
+      } else {
+        alert(data.error || "Failed to save workflow");
+      }
+
+    } catch (err) {
+      console.error(err);
+      alert("Save failed");
     }
   };
+
 
   const pollRunStatus = (runId: string) => {
     const interval = setInterval(async () => {
@@ -156,6 +198,7 @@ export default function DashboardPage() {
         <div className="text-sm font-semibold text-gray-200">
           Weavy Clone
         </div>
+        <UserButton />
       </header>
 
       <div className="flex flex-1 overflow-hidden">

@@ -2,20 +2,42 @@
 
 import { Handle, Position } from "reactflow";
 import { MoreHorizontal, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function LLMNode({ id, data, onDelete }: any) {
   const status = data?.status || "idle";
+
+  const [displayText, setDisplayText] = useState("");
+  const result = data?.result || "";
+
+  useEffect(() => {
+    if (!result) return;
+
+    let index = 0;
+    setDisplayText("");
+
+    const interval = setInterval(() => {
+      setDisplayText(result.slice(0, index));
+      index++;
+      if (index > result.length) {
+        clearInterval(interval);
+      }
+    }, 15); // typing speed
+
+    return () => clearInterval(interval);
+  }, [result]);
+
 
   const borderColor =
     status === "running"
       ? "border-purple-500 animate-pulse"
       : status === "success"
-      ? "border-green-500"
-      : status === "error"
-      ? "border-red-500"
-      : status === "skipped"
-      ? "border-yellow-500"
-      : "border-[#2a2a2a]";
+        ? "border-green-500"
+        : status === "error"
+          ? "border-red-500"
+          : status === "skipped"
+            ? "border-yellow-500"
+            : "border-[#2a2a2a]";
 
   return (
     <div
@@ -61,11 +83,9 @@ export default function LLMNode({ id, data, onDelete }: any) {
 
         {/* Output Section */}
         <div className="bg-[#222] border border-[#2a2a2a] rounded-md p-3 text-xs text-gray-300 whitespace-pre-wrap min-h-[100px]">
-          {status === "running" && (
-            <span className="text-purple-400">
-              Generating response...
-            </span>
-          )}
+          {status === "running"
+            ? displayText + "▌"
+            : displayText}
 
           {status === "error" && (
             <span className="text-red-400">
@@ -78,8 +98,6 @@ export default function LLMNode({ id, data, onDelete }: any) {
               Skipped due to upstream failure.
             </span>
           )}
-
-          {status === "success" && data?.result}
 
           {status === "idle" && (
             <span className="text-gray-500">
