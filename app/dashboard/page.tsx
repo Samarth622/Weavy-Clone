@@ -14,9 +14,23 @@ export default function DashboardPage() {
   const [savedWorkflows, setSavedWorkflows] = useState<any[]>([]);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [workflowRuns, setWorkflowRuns] = useState<any[]>([]);
   const router = useRouter();
 
   const { user, isLoaded } = useUser();
+
+  const loadRuns = async (id: string) => {
+    try {
+      const res = await fetch(`/api/workflows/${id}/runs`);
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+      setWorkflowRuns(data);
+    } catch (err) {
+      console.error("Failed to load runs:", err);
+    }
+  };
 
   // ------------------------
   // Load Saved Workflows
@@ -41,15 +55,15 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
-  if (!isLoaded) return;
+    if (!isLoaded) return;
 
-  if (!user) {
-    router.push("/sign-in");
-    return;
-  }
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
 
-  loadWorkflows();
-}, [isLoaded, user]);
+    loadWorkflows();
+  }, [isLoaded, user]);
 
 
 
@@ -61,6 +75,7 @@ export default function DashboardPage() {
     setEdges([]);
     setWorkflowName("Untitled Workflow");
     setWorkflowId(null);
+
   };
 
   // ------------------------
@@ -101,6 +116,26 @@ export default function DashboardPage() {
     }
   };
 
+  const handleReplayRun = (run: any) => {
+    setNodes(prev =>
+      prev.map(node => {
+        const nodeRun = run.nodeRuns.find(
+          (n: any) => n.nodeId === node.id
+        );
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            status: nodeRun?.status || "idle",
+            result: nodeRun?.output || null,
+          },
+        };
+      })
+    );
+  };
+
+
 
   const pollRunStatus = (runId: string) => {
     const interval = setInterval(async () => {
@@ -131,6 +166,8 @@ export default function DashboardPage() {
       if (data.status === "success" || data.status === "error") {
         clearInterval(interval);
         setIsRunning(false);
+
+        loadRuns(workflowId!);
       }
     }, 500); // 🔥 Faster polling
   };
@@ -188,6 +225,8 @@ export default function DashboardPage() {
     setEdges(workflow.edges);
     setWorkflowName(workflow.name);
     setWorkflowId(workflow.id);
+
+    loadRuns(workflow.id);
   };
 
   return (
@@ -265,6 +304,34 @@ export default function DashboardPage() {
 
         {/* RIGHT PANEL - SAVED WORKFLOWS */}
         <aside className="w-[300px] border-l border-[#1f1f1f] bg-[#121212] p-4 overflow-y-auto">
+
+          {/* WORKFLOW RUN HISTORY */}
+          {workflowId && (
+            <>
+              <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
+                Run History
+              </div>
+
+              <div className="space-y-3 mb-6">
+                {workflowRuns.map((run) => (
+                  <div
+                    key={run.id}
+                    onClick={() => handleReplayRun(run)}
+                    className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-xs text-gray-300 hover:border-[#7C3AED] transition"
+                  >
+                    <div className="font-medium mb-1">
+                      Run {run.id.slice(0, 6)}
+                    </div>
+                    <div className="text-gray-500 text-[11px]">
+                      {new Date(run.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* SAVED WORKFLOWS */}
           <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
             Saved Workflows
           </div>
@@ -285,6 +352,7 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+
         </aside>
 
       </div>
