@@ -1,336 +1,249 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/sidebar/Sidebar";
 import WorkflowCanvas from "@/components/canvas/WorkflowCanvas";
 
 export default function DashboardPage() {
   const [nodes, setNodes] = useState<any[]>([]);
   const [edges, setEdges] = useState<any[]>([]);
-  const [runHistory, setRunHistory] = useState<any[]>([]);
   const [workflowName, setWorkflowName] = useState("Untitled Workflow");
+  const [savedWorkflows, setSavedWorkflows] = useState<any[]>([]);
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const replayRun = useCallback((run: any) => {
-    setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          status: run.nodeResults[node.id]?.status || "idle",
-          result: run.nodeResults[node.id]?.result || null,
-        },
-      }))
-    );
+  // ------------------------
+  // Load Saved Workflows
+  // ------------------------
+  const loadWorkflows = async () => {
+    const res = await fetch("/api/workflows");
+    const data = await res.json();
+    setSavedWorkflows(data);
+  };
+
+  useEffect(() => {
+    loadWorkflows();
   }, []);
 
-  const runWorkflow = useCallback(async () => {
-    if (nodes.length === 0) return;
+  // ------------------------
+  // Create New Workflow
+  // ------------------------
+  const handleNewWorkflow = () => {
+    setNodes([]);
+    setEdges([]);
+    setWorkflowName("Untitled Workflow");
+    setWorkflowId(null);
+  };
 
-    const nodeSnapshot = nodes.map((n) => ({
-      ...n,
-      data: { ...n.data },
-    }));
-
-    const edgeSnapshot = [...edges];
-
-    const incomingCount: Record<string, number> = {};
-    const adjacency: Record<string, string[]> = {};
-
-    nodeSnapshot.forEach((node) => {
-      incomingCount[node.id] = 0;
-      adjacency[node.id] = [];
+  // ------------------------
+  // Save Workflow
+  // ------------------------
+  const handleSaveWorkflow = async () => {
+    const res = await fetch("/api/workflows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: workflowId,
+        name: workflowName,
+        nodes,
+        edges,
+      }),
     });
 
-    edgeSnapshot.forEach((edge) => {
-      incomingCount[edge.target]++;
-      adjacency[edge.source].push(edge.target);
-    });
+    const data = await res.json();
 
-    // Structural cycle check
-    const tempIncoming = { ...incomingCount };
-    let tempQueue = Object.keys(tempIncoming).filter(
-      (id) => tempIncoming[id] === 0
-    );
-
-    let visited = 0;
-
-    while (tempQueue.length > 0) {
-      const id = tempQueue.shift()!;
-      visited++;
-
-      adjacency[id].forEach((neighbor) => {
-        tempIncoming[neighbor]--;
-        if (tempIncoming[neighbor] === 0) {
-          tempQueue.push(neighbor);
-        }
-      });
+    if (res.ok) {
+      setWorkflowId(data.id); // important
+      loadWorkflows();
+    } else {
+      alert(data.error || "Failed to save workflow");
     }
+  };
 
-    if (visited !== nodeSnapshot.length) {
-      alert("Cycle detected! Workflow must be acyclic.");
-      return;
-    }
+  const pollRunStatus = (runId: string) => {
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/run-status/${runId}`);
 
-    // Reset UI
-    setNodes((nds) =>
-      nds.map((n) => ({
-        ...n,
-        data: { ...n.data, status: "idle", result: null },
-      }))
-    );
+      if (!res.ok) return;
 
-    let queue = Object.keys(incomingCount).filter(
-      (id) => incomingCount[id] === 0
-    );
+      const data = await res.json();
+      if (!data.nodeRuns) return;
 
-    const processed = new Set<string>();
-
-    while (queue.length > 0) {
-      const currentBatch = [...queue];
-      queue = [];
-
-      const results = await Promise.all(
-        currentBatch.map(async (nodeId) => {
-          processed.add(nodeId);
-
-          const node = nodeSnapshot.find((n) => n.id === nodeId);
-          if (!node) return { nodeId, failed: true };
-
-          setNodes((nds) =>
-            nds.map((n) =>
-              n.id === nodeId
-                ? { ...n, data: { ...n.data, status: "running" } }
-                : n
-            )
+      setNodes(prev =>
+        prev.map(node => {
+          const nodeRun = data.nodeRuns.find(
+            (n: any) => n.nodeId === node.id
           );
 
-          try {
-            let output = null;
-            let failed = false;
-
-            // 🔥 REAL LLM EXECUTION
-            if (node.type === "llm") {
-              const parentIds = edgeSnapshot
-                .filter((e) => e.target === nodeId)
-                .map((e) => e.source);
-
-              // Get full parent node objects
-              const parentNodes = nodeSnapshot.filter((n) =>
-                parentIds.includes(n.id)
-              );
-
-              // Extract text inputs
-              const textInputs = parentNodes
-                .map((n) => n.data?.prompt || n.data?.result)
-                .filter(Boolean);
-
-              // Extract image input
-              const imageInput = parentNodes.find(
-                (n) => n.data?.image
-              );
-
-              // Final prompt
-              const finalPrompt =
-                textInputs.join("\n") || "Describe this image.";
-
-
-              const response = await fetch("/api/trigger-llm", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  prompt: finalPrompt,
-                  image: imageInput?.data?.image || null,
-                }),
-              });
-
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error);
-
-              output = data;
-
-            } else if (node.type === "extract") {
-              const parentVideoNode = nodeSnapshot.find(n =>
-                edgeSnapshot.some(e => e.target === nodeId && e.source === n.id)
-              );
-
-              const videoInput = parentVideoNode?.data?.video;
-
-              const response = await fetch("/api/trigger-extract-frame", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  video: videoInput,
-                  timestamp: 1, // 1 second
-                }),
-              });
-
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error);
-
-              output = data;
-            } else if (node.type === "crop") {
-              const parentImageNode = nodeSnapshot.find(n =>
-                edgeSnapshot.some(e => e.target === nodeId && e.source === n.id)
-              );
-
-              const imageInput = parentImageNode?.data?.image || parentImageNode?.data?.result;
-
-              const response = await fetch("/api/trigger-crop", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  image: imageInput,
-                  mode: node.data?.mode || "full",
-                }),
-              });
-
-              const data = await response.json();
-              output = data;
-            } else {
-              // Simulated execution
-              await new Promise((res) => setTimeout(res, 800));
-              output = `Result from ${nodeId}`;
-            }
-
-            node.data.status = "success";
-            node.data.result = output;
-
-            setNodes((nds) =>
-              nds.map((n) =>
-                n.id === nodeId
-                  ? {
-                    ...n,
-                    data: {
-                      ...n.data,
-                      status: "success",
-                      result: output,
-                    },
-                  }
-                  : n
-              )
-            );
-
-            return { nodeId, failed: false };
-          } catch (err) {
-            node.data.status = "error";
-
-            setNodes((nds) =>
-              nds.map((n) =>
-                n.id === nodeId
-                  ? { ...n, data: { ...n.data, status: "error" } }
-                  : n
-              )
-            );
-
-            return { nodeId, failed: true };
-          }
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              status: nodeRun?.status || "idle",
+              result: nodeRun?.output || node.data?.result,
+            },
+          };
         })
       );
 
-      results.forEach(({ nodeId, failed }) => {
-        adjacency[nodeId].forEach((neighborId) => {
-          incomingCount[neighborId]--;
+      if (data.status === "success" || data.status === "error") {
+        clearInterval(interval);
+        setIsRunning(false);
+      }
+    }, 500); // 🔥 Faster polling
+  };
 
-          if (failed) {
-            const snapshotNode = nodeSnapshot.find(
-              (n) => n.id === neighborId
-            );
-            if (snapshotNode && !processed.has(neighborId)) {
-              snapshotNode.data.status = "skipped";
-              processed.add(neighborId);
 
-              setNodes((nds) =>
-                nds.map((n) =>
-                  n.id === neighborId
-                    ? {
-                      ...n,
-                      data: { ...n.data, status: "skipped" },
-                    }
-                    : n
-                )
-              );
-            }
-          }
 
-          if (incomingCount[neighborId] === 0 &&
-            !processed.has(neighborId)) {
-            queue.push(neighborId);
-          }
-        });
-      });
+  const handleRun = async () => {
+    if (!workflowId) {
+      alert("Please save workflow first.");
+      return;
     }
 
-    // Save history
-    const snapshot: any = {};
-    nodeSnapshot.forEach((node) => {
-      snapshot[node.id] = {
-        status: node.data?.status,
-        result: node.data?.result,
-      };
+    setIsRunning(true);
+
+    setNodes(prev =>
+      prev.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          status: "idle",
+          result: null
+        }
+      }))
+    );
+
+
+    const res = await fetch("/api/run-workflow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workflowId,
+        nodes,
+        edges,
+      }),
     });
 
-    setRunHistory((prev) => [
-      {
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        nodeResults: snapshot,
-      },
-      ...prev,
-    ]);
-  }, [nodes, edges]);
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error);
+      setIsRunning(false);
+      return;
+    }
+
+    pollRunStatus(data.runId);
+  };
+
+
+
+  // ------------------------
+  // Load Existing Workflow
+  // ------------------------
+  const handleLoadWorkflow = (workflow: any) => {
+    setNodes(workflow.nodes);
+    setEdges(workflow.edges);
+    setWorkflowName(workflow.name);
+    setWorkflowId(workflow.id);
+  };
 
   return (
     <div className="flex h-screen flex-col bg-[#0f0f0f]">
+
+      {/* Top Navbar */}
       <header className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
-        <div className="text-sm font-semibold">
+        <div className="text-sm font-semibold text-gray-200">
           Weavy Clone
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
+
+        {/* LEFT SIDEBAR */}
         <aside className="w-64 border-r border-[#1f1f1f] bg-[#121212]">
           <Sidebar setNodes={setNodes} />
         </aside>
 
+        {/* MAIN AREA */}
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
-          <div className="h-14 border-b border-[#1f1f1f] flex items-center justify-between px-6">
-            <input
-              value={workflowName}
-              onChange={(e) => setWorkflowName(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm text-gray-300 font-medium"
-            />
 
-            <button
-              onClick={runWorkflow}
-              className="bg-[#7C3AED] px-4 py-2 rounded-md"
-            >
-              Run
-            </button>
+          {/* HEADER BAR */}
+          <div className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
+
+            {/* LEFT */}
+            <div className="flex items-center gap-4">
+              <input
+                value={workflowName}
+                onChange={(e) => setWorkflowName(e.target.value)}
+                className="bg-transparent text-sm font-semibold text-gray-200 
+                outline-none border-b border-transparent 
+                focus:border-[#7C3AED] transition w-56"
+              />
+            </div>
+
+            {/* RIGHT */}
+            <div className="flex items-center gap-3">
+
+              <button
+                onClick={handleNewWorkflow}
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] text-sm px-3 py-1.5 rounded-md transition"
+              >
+                + New
+              </button>
+
+              <button
+                onClick={handleSaveWorkflow}
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] text-sm px-4 py-2 rounded-md transition"
+              >
+                Save
+              </button>
+
+              <button
+                onClick={handleRun}
+                disabled={isRunning}
+                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-sm font-medium px-4 py-2 rounded-md transition disabled:opacity-50"
+              >
+                {isRunning ? "Running..." : "Run"}
+              </button>
+
+            </div>
           </div>
 
+          {/* CANVAS */}
           <WorkflowCanvas
             nodes={nodes}
             setNodes={setNodes}
             edges={edges}
             setEdges={setEdges}
           />
+
         </main>
 
-        <aside className="w-[300px] border-l border-[#1f1f1f] bg-[#121212] p-4">
-          <div className="text-xs uppercase text-gray-500 mb-4">
-            Workflow History
+        {/* RIGHT PANEL - SAVED WORKFLOWS */}
+        <aside className="w-[300px] border-l border-[#1f1f1f] bg-[#121212] p-4 overflow-y-auto">
+          <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
+            Saved Workflows
           </div>
 
-          {runHistory.map((run) => (
-            <div
-              key={run.id}
-              onClick={() => replayRun(run)}
-              className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md mb-3"
-            >
-              Run {run.id.slice(0, 6)}
-            </div>
-          ))}
+          <div className="space-y-3">
+            {savedWorkflows.map((workflow) => (
+              <div
+                key={workflow.id}
+                onClick={() => handleLoadWorkflow(workflow)}
+                className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-xs text-gray-300 hover:border-[#7C3AED] transition"
+              >
+                <div className="font-medium mb-1">
+                  {workflow.name}
+                </div>
+                <div className="text-gray-500 text-[11px]">
+                  {new Date(workflow.createdAt).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
         </aside>
+
       </div>
     </div>
   );
