@@ -13,7 +13,8 @@ export const extractFrameTask = task({
   }) => {
     const { video, timestamp } = payload;
 
-    const ffmpegPath = "C:\\Users\\gupta\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe";
+    const ffmpegPath = process.env.NODE_ENV === "production"
+      ? process.env.FFMPEG_PATH : "C:\\Users\\gupta\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe";
 
     if (!ffmpegPath) {
       throw new Error("ffmpeg-static failed to resolve binary path");

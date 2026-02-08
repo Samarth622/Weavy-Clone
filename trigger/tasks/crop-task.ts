@@ -17,7 +17,8 @@ export const cropTask = task({
       return image;
     }
 
-    const ffmpegPath = "C:\\Users\\gupta\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe";
+    const ffmpegPath = process.env.NODE_ENV === "production"
+      ? process.env.FFMPEG_PATH : "C:\\Users\\gupta\\AppData\\Local\\Microsoft\\WinGet\\Links\\ffmpeg.exe";
 
     const base64Data = image.split(",")[1];
     const buffer = Buffer.from(base64Data, "base64");
@@ -31,7 +32,7 @@ export const cropTask = task({
     // First: get image dimensions using ffprobe
     const dimensions = await new Promise<{ width: number; height: number }>(
       (resolve, reject) => {
-        const probe = spawn(ffmpegPath, [
+        const probe = spawn(ffmpegPath!, [
           "-i",
           inputPath,
         ]);
@@ -81,7 +82,7 @@ export const cropTask = task({
     const y = Math.floor((imgH - cropH) / 2);
 
     await new Promise<void>((resolve, reject) => {
-      const ffmpegProcess = spawn(ffmpegPath, [
+      const ffmpegProcess = spawn(ffmpegPath!, [
         "-y",
         "-i",
         inputPath,
