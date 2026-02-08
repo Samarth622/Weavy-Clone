@@ -86,7 +86,7 @@ export default function WorkflowCanvas({
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      const newEdge: Edge = {
+      const newEdge: any = {
         ...connection,
         id: `${connection.source}-${connection.target}`,
         animated: true,
