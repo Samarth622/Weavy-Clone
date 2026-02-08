@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import Sidebar from "@/components/sidebar/Sidebar";
 import WorkflowCanvas from "@/components/canvas/WorkflowCanvas";
-import { useUser } from "@clerk/nextjs";
+import { useUser, UserButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
 
 export default function DashboardPage() {
   const [nodes, setNodes] = useState<any[]>([]);
@@ -14,46 +13,18 @@ export default function DashboardPage() {
   const [savedWorkflows, setSavedWorkflows] = useState<any[]>([]);
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [workflowRuns, setWorkflowRuns] = useState<any[]>([]);
-  const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // History
+  const [expandedWorkflow, setExpandedWorkflow] = useState<string | null>(null);
+  const [runsByWorkflow, setRunsByWorkflow] = useState<Record<string, any[]>>({});
+
+  const router = useRouter();
   const { user, isLoaded } = useUser();
 
-  const loadRuns = async (id: string) => {
-    try {
-      const res = await fetch(`/api/workflows/${id}/runs`);
-
-      if (!res.ok) return;
-
-      const data = await res.json();
-      setWorkflowRuns(data);
-    } catch (err) {
-      console.error("Failed to load runs:", err);
-    }
-  };
-
-  // ------------------------
-  // Load Saved Workflows
-  // ------------------------
-  const loadWorkflows = async () => {
-    try {
-      const res = await fetch("/api/workflows");
-
-      const text = await res.text();
-
-      if (!text) {
-        console.warn("Empty response from API");
-        return;
-      }
-
-      const data = JSON.parse(text);
-      setSavedWorkflows(data);
-    } catch (err) {
-      console.error("Failed to load workflows:", err);
-    }
-  };
-
-
+  // -----------------------------
+  // AUTH CHECK
+  // -----------------------------
   useEffect(() => {
     if (!isLoaded) return;
 
@@ -65,22 +36,53 @@ export default function DashboardPage() {
     loadWorkflows();
   }, [isLoaded, user]);
 
+  // -----------------------------
+  // LOAD WORKFLOWS
+  // -----------------------------
+  const loadWorkflows = async () => {
+    try {
+      const res = await fetch("/api/workflows");
+      if (!res.ok) return;
 
+      const data = await res.json();
+      setSavedWorkflows(data);
+    } catch (err) {
+      console.error("Failed to load workflows:", err);
+    }
+  };
 
-  // ------------------------
-  // Create New Workflow
-  // ------------------------
+  // -----------------------------
+  // LOAD RUNS FOR WORKFLOW
+  // -----------------------------
+  const loadRunsForWorkflow = async (id: string) => {
+    try {
+      const res = await fetch(`/api/workflows/${id}/runs`);
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      setRunsByWorkflow(prev => ({
+        ...prev,
+        [id]: data,
+      }));
+    } catch (err) {
+      console.error("Failed to load runs:", err);
+    }
+  };
+
+  // -----------------------------
+  // NEW WORKFLOW
+  // -----------------------------
   const handleNewWorkflow = () => {
     setNodes([]);
     setEdges([]);
     setWorkflowName("Untitled Workflow");
     setWorkflowId(null);
-
   };
 
-  // ------------------------
-  // Save Workflow
-  // ------------------------
+  // -----------------------------
+  // SAVE WORKFLOW
+  // -----------------------------
   const handleSaveWorkflow = async () => {
     try {
       const res = await fetch("/api/workflows", {
@@ -94,28 +96,24 @@ export default function DashboardPage() {
         }),
       });
 
-      const text = await res.text(); // safer
+      const data = await res.json();
 
-      if (!text) {
-        alert("Empty response from server");
+      if (!res.ok) {
+        alert(data.error);
         return;
       }
 
-      const data = JSON.parse(text);
-
-      if (res.ok) {
-        setWorkflowId(data.id);
-        loadWorkflows();
-      } else {
-        alert(data.error || "Failed to save workflow");
-      }
-
+      setWorkflowId(data.id);
+      loadWorkflows();
     } catch (err) {
       console.error(err);
       alert("Save failed");
     }
   };
 
+  // -----------------------------
+  // REPLAY RUN
+  // -----------------------------
   const handleReplayRun = (run: any) => {
     setNodes(prev =>
       prev.map(node => {
@@ -135,20 +133,19 @@ export default function DashboardPage() {
     );
   };
 
-
-
+  // -----------------------------
+  // POLL RUN STATUS
+  // -----------------------------
   const pollRunStatus = (runId: string) => {
     const interval = setInterval(async () => {
       const res = await fetch(`/api/run-status/${runId}`);
-
       if (!res.ok) return;
 
       const data = await res.json();
-      if (!data.nodeRuns) return;
 
       setNodes(prev =>
         prev.map(node => {
-          const nodeRun = data.nodeRuns.find(
+          const nodeRun = data.nodeRuns?.find(
             (n: any) => n.nodeId === node.id
           );
 
@@ -167,13 +164,16 @@ export default function DashboardPage() {
         clearInterval(interval);
         setIsRunning(false);
 
-        loadRuns(workflowId!);
+        if (workflowId) {
+          await loadRunsForWorkflow(workflowId);
+        }
       }
-    }, 500); // 🔥 Faster polling
+    }, 500);
   };
 
-
-
+  // -----------------------------
+  // RUN WORKFLOW
+  // -----------------------------
   const handleRun = async () => {
     if (!workflowId) {
       alert("Please save workflow first.");
@@ -185,14 +185,9 @@ export default function DashboardPage() {
     setNodes(prev =>
       prev.map(node => ({
         ...node,
-        data: {
-          ...node.data,
-          status: "idle",
-          result: null
-        }
+        data: { ...node.data, status: "idle", result: null },
       }))
     );
-
 
     const res = await fetch("/api/run-workflow", {
       method: "POST",
@@ -215,24 +210,34 @@ export default function DashboardPage() {
     pollRunStatus(data.runId);
   };
 
-
-
-  // ------------------------
-  // Load Existing Workflow
-  // ------------------------
-  const handleLoadWorkflow = (workflow: any) => {
+  // -----------------------------
+  // LOAD WORKFLOW + TOGGLE RUNS
+  // -----------------------------
+  const handleWorkflowClick = async (workflow: any) => {
+    // Load canvas
     setNodes(workflow.nodes);
     setEdges(workflow.edges);
     setWorkflowName(workflow.name);
     setWorkflowId(workflow.id);
 
-    loadRuns(workflow.id);
+    // Toggle expand
+    setExpandedWorkflow(prev =>
+      prev === workflow.id ? null : workflow.id
+    );
+
+    // Fetch runs if not loaded
+    if (!runsByWorkflow[workflow.id]) {
+      await loadRunsForWorkflow(workflow.id);
+    }
   };
 
+  // =============================
+  // UI
+  // =============================
   return (
     <div className="flex h-screen flex-col bg-[#0f0f0f]">
 
-      {/* Top Navbar */}
+      {/* TOP BAR */}
       <header className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
         <div className="text-sm font-semibold text-gray-200">
           Weavy Clone
@@ -242,41 +247,46 @@ export default function DashboardPage() {
 
       <div className="flex flex-1 overflow-hidden">
 
-        {/* LEFT SIDEBAR */}
-        <aside className="w-64 border-r border-[#1f1f1f] bg-[#121212]">
-          <Sidebar setNodes={setNodes} />
-        </aside>
+        <div className="relative group">
 
-        {/* MAIN AREA */}
+          <aside
+            className="
+      h-full
+      bg-[#121212]
+      border-r border-[#1f1f1f]
+      transition-all duration-300 ease-in-out
+      w-16
+      group-hover:w-64
+      overflow-hidden
+    "
+          >
+            <Sidebar setNodes={setNodes} />
+          </aside>
+
+        </div>
+
+        {/* MAIN */}
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
 
-          {/* HEADER BAR */}
+          {/* HEADER */}
           <div className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
+            <input
+              value={workflowName}
+              onChange={(e) => setWorkflowName(e.target.value)}
+              className="bg-transparent text-sm font-semibold text-gray-200 outline-none border-b border-transparent focus:border-[#7C3AED] transition w-56"
+            />
 
-            {/* LEFT */}
-            <div className="flex items-center gap-4">
-              <input
-                value={workflowName}
-                onChange={(e) => setWorkflowName(e.target.value)}
-                className="bg-transparent text-sm font-semibold text-gray-200 
-                outline-none border-b border-transparent 
-                focus:border-[#7C3AED] transition w-56"
-              />
-            </div>
-
-            {/* RIGHT */}
-            <div className="flex items-center gap-3">
-
+            <div className="flex gap-3">
               <button
                 onClick={handleNewWorkflow}
-                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] text-sm px-3 py-1.5 rounded-md transition"
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] px-3 py-1.5 rounded-md text-sm"
               >
                 + New
               </button>
 
               <button
                 onClick={handleSaveWorkflow}
-                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] text-sm px-4 py-2 rounded-md transition"
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] px-4 py-2 rounded-md text-sm"
               >
                 Save
               </button>
@@ -284,11 +294,10 @@ export default function DashboardPage() {
               <button
                 onClick={handleRun}
                 disabled={isRunning}
-                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-sm font-medium px-4 py-2 rounded-md transition disabled:opacity-50"
+                className="bg-[#7C3AED] hover:bg-[#6D28D9] px-4 py-2 rounded-md text-sm disabled:opacity-50"
               >
                 {isRunning ? "Running..." : "Run"}
               </button>
-
             </div>
           </div>
 
@@ -299,60 +308,49 @@ export default function DashboardPage() {
             edges={edges}
             setEdges={setEdges}
           />
-
         </main>
 
-        {/* RIGHT PANEL - SAVED WORKFLOWS */}
-        <aside className="w-[300px] border-l border-[#1f1f1f] bg-[#121212] p-4 overflow-y-auto">
-
-          {/* WORKFLOW RUN HISTORY */}
-          {workflowId && (
-            <>
-              <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
-                Run History
-              </div>
-
-              <div className="space-y-3 mb-6">
-                {workflowRuns.map((run) => (
-                  <div
-                    key={run.id}
-                    onClick={() => handleReplayRun(run)}
-                    className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-xs text-gray-300 hover:border-[#7C3AED] transition"
-                  >
-                    <div className="font-medium mb-1">
-                      Run {run.id.slice(0, 6)}
-                    </div>
-                    <div className="text-gray-500 text-[11px]">
-                      {new Date(run.createdAt).toLocaleString()}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* SAVED WORKFLOWS */}
+        {/* RIGHT PANEL */}
+        <aside className="w-[320px] border-l border-[#1f1f1f] bg-[#121212] p-4 overflow-y-auto">
           <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
-            Saved Workflows
+            Workflows
           </div>
 
           <div className="space-y-3">
-            {savedWorkflows.map((workflow) => (
-              <div
-                key={workflow.id}
-                onClick={() => handleLoadWorkflow(workflow)}
-                className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-xs text-gray-300 hover:border-[#7C3AED] transition"
-              >
-                <div className="font-medium mb-1">
-                  {workflow.name}
+            {savedWorkflows.map(workflow => (
+              <div key={workflow.id}>
+                <div
+                  onClick={() => handleWorkflowClick(workflow)}
+                  className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-sm text-gray-200 hover:border-[#7C3AED] transition"
+                >
+                  <div className="font-medium">{workflow.name}</div>
+                  <div className="text-gray-500 text-[11px]">
+                    {new Date(workflow.createdAt).toLocaleString()}
+                  </div>
                 </div>
-                <div className="text-gray-500 text-[11px]">
-                  {new Date(workflow.createdAt).toLocaleString()}
-                </div>
+
+                {expandedWorkflow === workflow.id && (
+                  <div className="ml-4 mt-2 space-y-2">
+                    {runsByWorkflow[workflow.id]?.length ? (
+                      runsByWorkflow[workflow.id].map((run: any) => (
+                        <div
+                          key={run.id}
+                          onClick={() => handleReplayRun(run)}
+                          className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
+                        >
+                          Run {run.id.slice(0, 6)} — {run.status}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-500">
+                        No runs yet
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-
         </aside>
 
       </div>

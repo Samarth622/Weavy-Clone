@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Type,
   Image,
@@ -38,24 +40,53 @@ export default function Sidebar({ setNodes }: SidebarProps) {
   };
 
   return (
-    <div className="h-full flex flex-col px-4 py-5">
+    <div className="h-full flex flex-col py-5">
 
-      <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
+      {/* Title */}
+      <div className="px-4 text-xs uppercase tracking-wider text-gray-500 mb-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         Nodes
       </div>
 
-      <div className="space-y-1.5">
+      {/* Node List */}
+      <div className="space-y-1 px-2">
         {nodes.map((node) => {
           const Icon = node.icon;
+
           return (
             <button
               key={node.label}
               onClick={() => addNode(node.type)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium rounded-md 
-                         bg-transparent hover:bg-[#1c1c1c] transition-colors"
+              className="
+                group/item
+                flex items-center
+                w-full
+                px-3 py-2.5
+                rounded-md
+                hover:bg-[#1c1c1c]
+                transition-all
+              "
             >
-              <Icon size={16} className="text-gray-400" />
-              <span>{node.label}</span>
+              {/* Icon */}
+              <div className="min-w-[24px] flex justify-center">
+                <Icon size={18} className="text-gray-400 group-hover/item:text-white transition-colors" />
+              </div>
+
+              {/* Label (hidden when collapsed) */}
+              <span
+                className="
+                  ml-3
+                  text-sm
+                  text-gray-300
+                  whitespace-nowrap
+                  opacity-0
+                  translate-x-2
+                  group-hover:opacity-100
+                  group-hover:translate-x-0
+                  transition-all duration-200
+                "
+              >
+                {node.label}
+              </span>
             </button>
           );
         })}
