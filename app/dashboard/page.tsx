@@ -242,7 +242,17 @@ export default function DashboardPage() {
         <div className="text-sm font-semibold text-gray-200">
           Weavy Clone
         </div>
-        <UserButton />
+        <div className="flex items-center gap-3">
+          {/* Mobile History Toggle */}
+          <button
+            onClick={() => setExpandedWorkflow(prev => prev ? null : "mobile")}
+            className="md:hidden text-gray-400"
+          >
+            🕘
+          </button>
+
+          <UserButton />
+        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -269,37 +279,64 @@ export default function DashboardPage() {
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
 
           {/* HEADER */}
-          <div className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
+          <div className="h-14 border-b border-[#1f1f1f] bg-[#111111] 
+flex items-center justify-between px-3 md:px-6">
+
+            {/* Workflow Name */}
             <input
               value={workflowName}
               onChange={(e) => setWorkflowName(e.target.value)}
-              className="bg-transparent text-sm font-semibold text-gray-200 outline-none border-b border-transparent focus:border-[#7C3AED] transition w-56"
+              className="bg-transparent text-sm font-semibold text-gray-200 
+    outline-none border-b border-transparent 
+    focus:border-[#7C3AED] transition 
+    w-32 sm:w-40 md:w-56"
             />
 
-            <div className="flex gap-3">
+            {/* ACTION BUTTONS */}
+            <div className="flex items-center gap-2 md:gap-3">
+
+              {/* + New */}
               <button
                 onClick={handleNewWorkflow}
-                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] px-3 py-1.5 rounded-md text-sm"
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] 
+      px-3 py-2 md:px-3 md:py-1.5 
+      rounded-md text-sm transition"
               >
-                + New
+                <span className="md:hidden">＋</span>
+                <span className="hidden md:inline">+ New</span>
               </button>
 
+              {/* Save */}
               <button
                 onClick={handleSaveWorkflow}
-                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] px-4 py-2 rounded-md text-sm"
+                className="bg-[#1f1f1f] hover:bg-[#2a2a2a] 
+      px-3 py-2 md:px-4 md:py-2 
+      rounded-md text-sm transition"
               >
-                Save
+                <span className="md:hidden">💾</span>
+                <span className="hidden md:inline">Save</span>
               </button>
 
+              {/* Run */}
               <button
                 onClick={handleRun}
                 disabled={isRunning}
-                className="bg-[#7C3AED] hover:bg-[#6D28D9] px-4 py-2 rounded-md text-sm disabled:opacity-50"
+                className="bg-[#7C3AED] hover:bg-[#6D28D9] 
+      px-3 py-2 md:px-4 md:py-2 
+      rounded-md text-sm transition 
+      disabled:opacity-50"
               >
-                {isRunning ? "Running..." : "Run"}
+                <span className="md:hidden">
+                  {isRunning ? "⏳" : "▶"}
+                </span>
+                <span className="hidden md:inline">
+                  {isRunning ? "Running..." : "Run"}
+                </span>
               </button>
+
             </div>
           </div>
+
 
           {/* CANVAS */}
           <WorkflowCanvas
@@ -311,45 +348,62 @@ export default function DashboardPage() {
         </main>
 
         {/* RIGHT PANEL */}
-        <aside className="w-[320px] border-l border-[#1f1f1f] bg-[#121212] p-4 overflow-y-auto">
-          <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
-            Workflows
-          </div>
+        <aside
+          className={`
+          fixed md:static
+          top-14 right-0
+          h-[calc(100vh-56px)]
+          bg-[#121212]
+          border-l border-[#1f1f1f]
+          transition-transform duration-300
+          w-72
+          z-40
+          ${expandedWorkflow ? "translate-x-0" : "translate-x-full"}
+          md:translate-x-0
+        `}
+        >
+          <div className="p-4 overflow-y-auto h-full">
 
-          <div className="space-y-3">
-            {savedWorkflows.map(workflow => (
-              <div key={workflow.id}>
-                <div
-                  onClick={() => handleWorkflowClick(workflow)}
-                  className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-sm text-gray-200 hover:border-[#7C3AED] transition"
-                >
-                  <div className="font-medium">{workflow.name}</div>
-                  <div className="text-gray-500 text-[11px]">
-                    {new Date(workflow.createdAt).toLocaleString()}
+            <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
+              Workflows
+            </div>
+
+            <div className="space-y-3">
+              {savedWorkflows.map(workflow => (
+                <div key={workflow.id}>
+                  <div
+                    onClick={() => handleWorkflowClick(workflow)}
+                    className="cursor-pointer bg-[#1c1c1c] p-3 rounded-md border border-[#2a2a2a] text-sm text-gray-200 hover:border-[#7C3AED] transition"
+                  >
+                    <div className="font-medium">{workflow.name}</div>
+                    <div className="text-gray-500 text-[11px]">
+                      {new Date(workflow.createdAt).toLocaleString()}
+                    </div>
                   </div>
-                </div>
 
-                {expandedWorkflow === workflow.id && (
-                  <div className="ml-4 mt-2 space-y-2">
-                    {runsByWorkflow[workflow.id]?.length ? (
-                      runsByWorkflow[workflow.id].map((run: any) => (
-                        <div
-                          key={run.id}
-                          onClick={() => handleReplayRun(run)}
-                          className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
-                        >
-                          Run {run.id.slice(0, 6)} — {run.status}
+                  {expandedWorkflow === workflow.id && (
+                    <div className="ml-4 mt-2 space-y-2">
+                      {runsByWorkflow[workflow.id]?.length ? (
+                        runsByWorkflow[workflow.id].map((run: any) => (
+                          <div
+                            key={run.id}
+                            onClick={() => handleReplayRun(run)}
+                            className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
+                          >
+                            Run {run.id.slice(0, 6)} — {run.status}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-gray-500">
+                          No runs yet
                         </div>
-                      ))
-                    ) : (
-                      <div className="text-xs text-gray-500">
-                        No runs yet
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
           </div>
         </aside>
 
