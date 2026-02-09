@@ -168,7 +168,7 @@ export default function DashboardPage() {
           await loadRunsForWorkflow(workflowId);
         }
       }
-    }, 500);
+    }, 3000);
   };
 
   // -----------------------------
