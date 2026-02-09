@@ -104,6 +104,7 @@ export default function DashboardPage() {
       }
 
       setWorkflowId(data.id);
+      alert("Workflow saved");
       loadWorkflows();
     } catch (err) {
       console.error(err);
