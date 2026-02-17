@@ -3,7 +3,7 @@
 import { useReactFlow } from "reactflow";
 import NodeShell from "./NodeShell";
 
-export default function ExtractFrameNode({ id, onDelete, data }: any) {
+export default function ExtractFrameNode({ id, onDelete, data, selected }: any) {
   const { setNodes } = useReactFlow();
 
   const handleTimestampChange = (
@@ -36,6 +36,7 @@ export default function ExtractFrameNode({ id, onDelete, data }: any) {
       rightLabel="Image"
       leftColor="#ef4444"
       rightColor="#10b981"
+      selected={selected}
     >
       {/* Preview */}
       {data?.result ? (

@@ -4,7 +4,7 @@ import { Handle, Position } from "reactflow";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
-export default function LLMNode({ id, data, onDelete }: any) {
+export default function LLMNode({ id, data, onDelete, selected }: any) {
   const status = data?.status || "idle";
 
   const [displayText, setDisplayText] = useState("");
@@ -41,8 +41,19 @@ export default function LLMNode({ id, data, onDelete }: any) {
 
   return (
     <div
-      className={`relative bg-[#1b1b1b] border rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[360px] ${borderColor}`}
+      className={`
+    relative
+    bg-[#1b1b1b]
+    border
+    rounded-xl
+    min-w-[360px]
+    transition-all duration-200
+    shadow-[0_8px_30px_rgba(0,0,0,0.4)]
+    ${borderColor}
+    ${selected ? "ring-2 ring-[#7C3AED] shadow-[0_0_20px_rgba(124,58,237,0.6)] scale-[1.02]" : ""}
+  `}
     >
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
         <span className="text-sm font-medium text-gray-200">

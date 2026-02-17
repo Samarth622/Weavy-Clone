@@ -3,7 +3,7 @@
 import { useReactFlow } from "reactflow";
 import NodeShell from "./NodeShell";
 
-export default function CropNode({ id, onDelete, data }: any) {
+export default function CropNode({ id, onDelete, data, selected }: any) {
   const { setNodes } = useReactFlow();
 
   const handleModeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -34,6 +34,7 @@ export default function CropNode({ id, onDelete, data }: any) {
       rightLabel="Cropped"
       leftColor="#f59e0b"
       rightColor="#10b981"
+      selected={selected}
     >
       <div className="space-y-4">
 

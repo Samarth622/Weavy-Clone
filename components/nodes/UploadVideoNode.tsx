@@ -4,7 +4,7 @@ import { useReactFlow } from "reactflow";
 import { Upload } from "lucide-react";
 import NodeShell from "./NodeShell";
 
-export default function UploadVideoNode({ id, data, onDelete }: any) {
+export default function UploadVideoNode({ id, data, onDelete, selected }: any) {
   const { setNodes } = useReactFlow();
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,6 +43,7 @@ export default function UploadVideoNode({ id, data, onDelete }: any) {
       title="Upload Video"
       rightLabel="Video"
       rightColor="#3b82f6"
+      selected={selected}
     >
       <div className="space-y-4">
 

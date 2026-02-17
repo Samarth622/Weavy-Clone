@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { useReactFlow } from "reactflow";
 import NodeShell from "./NodeShell";
 
-export default function PromptNode({ id, onDelete, data }: any) {
+export default function PromptNode({ id, onDelete, data, selected }: any) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { setNodes } = useReactFlow();
 
@@ -42,6 +42,7 @@ export default function PromptNode({ id, onDelete, data }: any) {
       title="Prompt"
       rightLabel="Prompt"
       rightColor="#7C3AED"
+      selected={selected}
     >
       <textarea
         ref={textareaRef}

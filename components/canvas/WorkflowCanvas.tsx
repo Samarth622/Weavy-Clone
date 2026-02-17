@@ -3,7 +3,6 @@
 import ReactFlow, {
   Background,
   Controls,
-  
   addEdge,
   Connection,
   Edge,
@@ -13,7 +12,7 @@ import ReactFlow, {
   applyEdgeChanges,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { useCallback } from "react";
 
@@ -29,6 +28,7 @@ interface Props {
   setNodes: any;
   edges: any[];
   setEdges: any;
+  onSelectionChange?: (ids: string[]) => void;
 }
 
 export default function WorkflowCanvas({
@@ -36,7 +36,10 @@ export default function WorkflowCanvas({
   setNodes,
   edges,
   setEdges,
+  onSelectionChange,
 }: Props) {
+
+  const previousSelection = useRef<string[]>([]);
 
   const handleDeleteNode = useCallback(
     (id: string) => {
@@ -107,6 +110,22 @@ export default function WorkflowCanvas({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         fitView
+        onSelectionChange={(elements) => {
+          const ids =
+            elements?.nodes?.map((n) => n.id) || [];
+
+          const prev = previousSelection.current;
+
+          const isSame =
+            ids.length === prev.length &&
+            ids.every((id, i) => id === prev[i]);
+
+          if (!isSame) {
+            previousSelection.current = ids;
+            onSelectionChange?.(ids);
+          }
+        }}
+
       >
         <Background gap={20} size={1} color="#1f1f1f" />
         <Controls />

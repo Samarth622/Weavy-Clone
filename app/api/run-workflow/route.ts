@@ -10,7 +10,12 @@ import { runs } from "@trigger.dev/sdk/v3";
  */
 export async function POST(req: Request) {
   try {
-    const { workflowId, nodes, edges } = await req.json();
+    const {
+      workflowId,
+      nodes,
+      edges,
+      executionScope = { type: "full" },
+    } = await req.json();
 
     if (!workflowId) {
       return NextResponse.json(
@@ -27,7 +32,12 @@ export async function POST(req: Request) {
     });
 
     // 🔥 Run in background
-    executeWorkflow(workflowRun.id, nodes, edges);
+    executeWorkflow(
+      workflowRun.id,
+      nodes,
+      edges,
+      executionScope
+    );
 
     return NextResponse.json({
       runId: workflowRun.id,
@@ -46,29 +56,69 @@ export async function POST(req: Request) {
 async function executeWorkflow(
   runId: string,
   nodes: any[],
-  edges: any[]
+  edges: any[],
+  executionScope: {
+    type: "full" | "single" | "selected";
+    nodeIds?: string[];
+  }
 ) {
   const results: Record<string, any> = {};
 
-  // -----------------------------
+  // ---------------------------------
+  // 🔥 SELECTIVE EXECUTION FILTER
+  // ---------------------------------
+  let nodesToRun = nodes;
+  let edgesToRun = edges;
+
+  if (
+    executionScope.type !== "full" &&
+    executionScope.nodeIds &&
+    executionScope.nodeIds.length > 0
+  ) {
+    const targetSet = new Set<string>();
+
+    const collectDependencies = (nodeId: string) => {
+      if (targetSet.has(nodeId)) return;
+      targetSet.add(nodeId);
+
+      edges.forEach((edge) => {
+        if (edge.target === nodeId) {
+          collectDependencies(edge.source);
+        }
+      });
+    };
+
+    executionScope.nodeIds.forEach((id) => {
+      collectDependencies(id);
+    });
+
+    nodesToRun = nodes.filter((n) => targetSet.has(n.id));
+    edgesToRun = edges.filter(
+      (e) =>
+        targetSet.has(e.source) &&
+        targetSet.has(e.target)
+    );
+  }
+
+  // ---------------------------------
   // 1️⃣ Build DAG
-  // -----------------------------
+  // ---------------------------------
   const incoming: Record<string, number> = {};
   const adj: Record<string, string[]> = {};
 
-  nodes.forEach((n) => {
+  nodesToRun.forEach((n) => {
     incoming[n.id] = 0;
     adj[n.id] = [];
   });
 
-  edges.forEach((e) => {
+  edgesToRun.forEach((e) => {
     incoming[e.target]++;
     adj[e.source].push(e.target);
   });
 
-  // -----------------------------
+  // ---------------------------------
   // 🔥 2️⃣ CYCLE DETECTION
-  // -----------------------------
+  // ---------------------------------
   const tempIncoming = { ...incoming };
   const queue = Object.keys(tempIncoming).filter(
     (id) => tempIncoming[id] === 0
@@ -88,7 +138,7 @@ async function executeWorkflow(
     });
   }
 
-  if (processedCount !== nodes.length) {
+  if (processedCount !== nodesToRun.length) {
     await prisma.workflowRun.update({
       where: { id: runId },
       data: {
@@ -97,24 +147,28 @@ async function executeWorkflow(
       },
     });
 
-    console.error("Workflow contains a cycle. Execution aborted.");
+    console.error(
+      "Workflow contains a cycle. Execution aborted."
+    );
     return;
   }
 
-  // -----------------------------
+  // ---------------------------------
   // 3️⃣ First Level
-  // -----------------------------
+  // ---------------------------------
   let currentLevel = Object.keys(incoming).filter(
     (id) => incoming[id] === 0
   );
 
-  // -----------------------------
+  // ---------------------------------
   // 4️⃣ Process Levels
-  // -----------------------------
+  // ---------------------------------
   while (currentLevel.length > 0) {
     await Promise.all(
       currentLevel.map(async (nodeId) => {
-        const node = nodes.find((n) => n.id === nodeId);
+        const node = nodesToRun.find(
+          (n) => n.id === nodeId
+        );
         if (!node) return;
 
         const nodeRun = await prisma.nodeRun.create({
@@ -130,7 +184,7 @@ async function executeWorkflow(
           const output = await executeSingleNode(
             node,
             results,
-            edges
+            edgesToRun
           );
 
           results[nodeId] = output;
@@ -144,7 +198,10 @@ async function executeWorkflow(
             },
           });
         } catch (error) {
-          console.error("Node execution error:", error);
+          console.error(
+            "Node execution error:",
+            error
+          );
 
           await prisma.nodeRun.update({
             where: { id: nodeRun.id },
@@ -157,9 +214,9 @@ async function executeWorkflow(
       })
     );
 
-    // -----------------------------
+    // ---------------------------------
     // Prepare Next Level
-    // -----------------------------
+    // ---------------------------------
     const nextLevel: string[] = [];
 
     currentLevel.forEach((nodeId) => {
@@ -174,9 +231,9 @@ async function executeWorkflow(
     currentLevel = nextLevel;
   }
 
-  // -----------------------------
+  // ---------------------------------
   // 5️⃣ Finish Workflow
-  // -----------------------------
+  // ---------------------------------
   await prisma.workflowRun.update({
     where: { id: runId },
     data: {
@@ -230,7 +287,8 @@ async function executeSingleNode(
     });
 
     const finalPrompt =
-      textInputs.join("\n") || "Describe this image.";
+      textInputs.join("\n") ||
+      "Describe this image.";
 
     const handle = await llmTask.trigger({
       prompt: finalPrompt,
@@ -253,15 +311,19 @@ async function executeSingleNode(
 
     const video = results[parentEdge?.source!];
 
-    const handle = await extractFrameTask.trigger({
-      video,
-      timestamp: node.data?.timestamp ?? 1,
-    });
+    const handle =
+      await extractFrameTask.trigger({
+        video,
+        timestamp:
+          node.data?.timestamp ?? 1,
+      });
 
     const run = await runs.poll(handle.id);
 
     if (!run.isSuccess) {
-      throw new Error("Extract frame task failed");
+      throw new Error(
+        "Extract frame task failed"
+      );
     }
 
     return run.output;
@@ -276,7 +338,8 @@ async function executeSingleNode(
 
     const handle = await cropTask.trigger({
       image,
-      mode: node.data?.mode || "full",
+      mode:
+        node.data?.mode || "full",
     });
 
     const run = await runs.poll(handle.id);

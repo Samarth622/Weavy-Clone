@@ -11,6 +11,7 @@ interface NodeShellProps {
   rightLabel?: string;
   leftColor?: string;
   rightColor?: string;
+  selected?: boolean; // 🔥 IMPORTANT
 }
 
 export default function NodeShell({
@@ -19,39 +20,38 @@ export default function NodeShell({
   children,
   onDelete,
   status,
-  leftLabel,
-  rightLabel,
   leftColor = "#7C3AED",
   rightColor = "#7C3AED",
+  selected,
 }: NodeShellProps) {
 
-  const borderClass =
+  const statusBorder =
     status === "running"
       ? "border-purple-500 animate-pulse"
       : status === "success"
-        ? "border-green-500"
-        : status === "error"
-          ? "border-red-500"
-          : "border-[#2a2a2a]";
+      ? "border-green-500"
+      : status === "error"
+      ? "border-red-500"
+      : "border-[#2a2a2a]";
+
+  // 🔥 Selection Highlight
+  const selectionStyle = selected
+    ? "ring-2 ring-[#7C3AED] shadow-[0_0_20px_rgba(124,58,237,0.6)]"
+    : "";
 
   return (
     <div
-      className={`relative bg-[#1b1b1b] border ${borderClass} rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)] min-w-[260px]`}
+      className={`relative bg-[#1b1b1b] border ${statusBorder} ${selectionStyle} rounded-xl min-w-[260px] transition-all duration-200`}
     >
-
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2a]">
         <span className="text-sm font-medium text-gray-200">
           {title}
         </span>
-
         <div className="flex items-center gap-2">
           {onDelete && (
             <button
-              onClick={() => {
-                console.log("Deleting:", id);
-                onDelete(id);
-              }}
+              onClick={() => onDelete(id)}
               className="text-gray-400 hover:text-red-500 transition"
             >
               <Trash2 size={14} />
@@ -69,7 +69,6 @@ export default function NodeShell({
         style={{ background: leftColor }}
         className="!w-3 !h-3"
       />
-
       <Handle
         type="source"
         position={Position.Right}
