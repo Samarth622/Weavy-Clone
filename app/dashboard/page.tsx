@@ -32,9 +32,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
-  // -----------------------------
+  // =============================
   // AUTH CHECK
-  // -----------------------------
+  // =============================
   useEffect(() => {
     if (!isLoaded) return;
     if (!user) {
@@ -44,9 +44,9 @@ export default function DashboardPage() {
     loadWorkflows();
   }, [isLoaded, user]);
 
-  // -----------------------------
+  // =============================
   // LOAD WORKFLOWS
-  // -----------------------------
+  // =============================
   const loadWorkflows = async () => {
     try {
       const res = await fetch("/api/workflows");
@@ -58,9 +58,6 @@ export default function DashboardPage() {
     }
   };
 
-  // -----------------------------
-  // LOAD RUNS
-  // -----------------------------
   const loadRunsForWorkflow = async (id: string) => {
     try {
       const res = await fetch(
@@ -78,9 +75,9 @@ export default function DashboardPage() {
     }
   };
 
-  // -----------------------------
+  // =============================
   // NEW WORKFLOW
-  // -----------------------------
+  // =============================
   const handleNewWorkflow = () => {
     setNodes([]);
     setEdges([]);
@@ -90,9 +87,9 @@ export default function DashboardPage() {
     setWorkflowDuration(null);
   };
 
-  // -----------------------------
+  // =============================
   // SAVE WORKFLOW
-  // -----------------------------
+  // =============================
   const handleSaveWorkflow = async () => {
     try {
       const res = await fetch("/api/workflows", {
@@ -122,9 +119,9 @@ export default function DashboardPage() {
     }
   };
 
-  // -----------------------------
+  // =============================
   // POLL RUN STATUS
-  // -----------------------------
+  // =============================
   const pollRunStatus = (runId: string) => {
     const interval = setInterval(async () => {
       const res = await fetch(
@@ -134,7 +131,6 @@ export default function DashboardPage() {
 
       const data = await res.json();
 
-      // 🔥 Update Nodes with duration
       setNodes((prev) =>
         prev.map((node) => {
           const nodeRun =
@@ -153,7 +149,7 @@ export default function DashboardPage() {
                 nodeRun?.output ??
                 node.data?.result,
               durationMs:
-                nodeRun?.durationMs ?? null, // ✅
+                nodeRun?.durationMs ?? null,
             },
           };
         })
@@ -165,7 +161,6 @@ export default function DashboardPage() {
       ) {
         clearInterval(interval);
         setIsRunning(false);
-
         setWorkflowDuration(
           data.durationMs ?? null
         );
@@ -179,9 +174,9 @@ export default function DashboardPage() {
     }, 2000);
   };
 
-  // -----------------------------
+  // =============================
   // RUN WORKFLOW
-  // -----------------------------
+  // =============================
   const handleRun = async (
     mode: "full" | "selected"
   ) => {
@@ -194,9 +189,7 @@ export default function DashboardPage() {
       mode === "selected" &&
       selectedNodeIds.length === 0
     ) {
-      alert(
-        "Please select at least one node."
-      );
+      alert("Please select at least one node.");
       return;
     }
 
@@ -219,9 +212,9 @@ export default function DashboardPage() {
       mode === "full"
         ? { type: "full" }
         : {
-          type: "selected",
-          nodeIds: selectedNodeIds,
-        };
+            type: "selected",
+            nodeIds: selectedNodeIds,
+          };
 
     const res = await fetch(
       "/api/run-workflow",
@@ -251,9 +244,9 @@ export default function DashboardPage() {
     pollRunStatus(data.runId);
   };
 
-  // -----------------------------
+  // =============================
   // REPLAY RUN
-  // -----------------------------
+  // =============================
   const handleReplayRun = (run: any) => {
     setWorkflowDuration(
       run.durationMs ?? null
@@ -283,9 +276,73 @@ export default function DashboardPage() {
     );
   };
 
-  // -----------------------------
+  // =============================
+  // EXPORT JSON
+  // =============================
+  const handleExportJSON = () => {
+    const data = {
+      name: workflowName,
+      nodes,
+      edges,
+    };
+
+    const blob = new Blob(
+      [JSON.stringify(data, null, 2)],
+      { type: "application/json" }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${workflowName || "workflow"}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  // =============================
+  // IMPORT JSON (FIXED)
+  // =============================
+  const handleImportJSON = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(
+          e.target?.result as string
+        );
+
+        if (!parsed.nodes || !parsed.edges) {
+          alert("Invalid workflow JSON");
+          return;
+        }
+
+        setNodes(parsed.nodes);
+        setEdges(parsed.edges);
+
+        setWorkflowName(
+          parsed.name || "Imported Workflow"
+        );
+        setWorkflowId(null);
+        setWorkflowDuration(null);
+        setSelectedNodeIds([]);
+      } catch (error) {
+        alert("Invalid JSON file");
+      }
+    };
+
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
+  // =============================
   // LOAD WORKFLOW
-  // -----------------------------
+  // =============================
   const handleWorkflowClick =
     async (workflow: any) => {
       setNodes(workflow.nodes);
@@ -314,7 +371,6 @@ export default function DashboardPage() {
   // =============================
   return (
     <div className="flex h-screen flex-col bg-[#0f0f0f]">
-      {/* TOP BAR */}
       <header className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
         <div className="text-sm font-semibold text-gray-200">
           Weavy Clone
@@ -324,27 +380,12 @@ export default function DashboardPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT SIDEBAR */}
-        <aside
-          className="
-    group
-    w-16
-    hover:w-64
-    transition-all
-    duration-300
-    bg-[#121212]
-    border-r
-    border-[#1f1f1f]
-    overflow-hidden
-  "
-        >
+        <aside className="group w-16 hover:w-64 transition-all duration-300 bg-[#121212] border-r border-[#1f1f1f] overflow-hidden">
           <Sidebar setNodes={setNodes} />
         </aside>
 
-
-
         {/* MAIN */}
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
-          {/* HEADER */}
           <div className="h-14 border-b border-[#1f1f1f] bg-[#111111] flex items-center justify-between px-6">
             <input
               value={workflowName}
@@ -356,8 +397,8 @@ export default function DashboardPage() {
               className="bg-transparent text-sm font-semibold text-gray-200 outline-none border-b border-transparent focus:border-[#7C3AED]"
             />
 
-            <div className="flex items-center gap-4">
-              {workflowDuration && (
+            <div className="flex items-center gap-3">
+              {workflowDuration !== null && (
                 <div className="text-xs text-gray-400">
                   Total:{" "}
                   {(workflowDuration / 1000).toFixed(
@@ -402,10 +443,26 @@ export default function DashboardPage() {
               >
                 Run Selected
               </button>
+
+              <button
+                onClick={handleExportJSON}
+                className="bg-[#1f1f1f] px-4 py-2 rounded-md"
+              >
+                Export JSON
+              </button>
+
+              <label className="bg-[#1f1f1f] px-4 py-2 rounded-md cursor-pointer">
+                Import JSON
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
             </div>
           </div>
 
-          {/* CANVAS */}
           <WorkflowCanvas
             nodes={nodes}
             setNodes={setNodes}
@@ -417,7 +474,7 @@ export default function DashboardPage() {
           />
         </main>
 
-        {/* RIGHT HISTORY PANEL */}
+        {/* RIGHT SIDEBAR */}
         <aside className="w-72 bg-[#121212] border-l border-[#1f1f1f] p-4 overflow-y-auto">
           <div className="text-xs uppercase tracking-wider text-gray-500 mb-4">
             Workflows
@@ -450,48 +507,25 @@ export default function DashboardPage() {
                       <div className="ml-4 mt-2 space-y-2">
                         {runsByWorkflow[
                           workflow.id
-                        ]?.length ? (
-                          runsByWorkflow[
-                            workflow.id
-                          ].map(
-                            (run: any) => (
-                              <div
-                                key={run.id}
-                                onClick={() =>
-                                  handleReplayRun(
-                                    run
-                                  )
-                                }
-                                className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
-                              >
-                                Run{" "}
-                                {run.id.slice(
-                                  0,
-                                  6
-                                )}{" "}
-                                —{" "}
-                                {
-                                  run.status
-                                }
-                                {run.durationMs && (
-                                  <span className="ml-2 text-gray-500">
-                                    (
-                                    {(
-                                      run.durationMs /
-                                      1000
-                                    ).toFixed(
-                                      2
-                                    )}
-                                    s)
-                                  </span>
-                                )}
-                              </div>
-                            )
+                        ]?.map(
+                          (run: any) => (
+                            <div
+                              key={run.id}
+                              onClick={() =>
+                                handleReplayRun(
+                                  run
+                                )
+                              }
+                              className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
+                            >
+                              Run{" "}
+                              {run.id.slice(
+                                0,
+                                6
+                              )}{" "}
+                              — {run.status}
+                            </div>
                           )
-                        ) : (
-                          <div className="text-xs text-gray-500">
-                            No runs yet
-                          </div>
                         )}
                       </div>
                     )}
