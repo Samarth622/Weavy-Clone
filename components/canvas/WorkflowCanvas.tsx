@@ -10,6 +10,7 @@ import ReactFlow, {
   EdgeChange,
   applyNodeChanges,
   applyEdgeChanges,
+  MiniMap,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useMemo, useRef, useState } from "react";
@@ -129,6 +130,14 @@ export default function WorkflowCanvas({
       >
         <Background gap={20} size={1} color="#1f1f1f" />
         <Controls />
+        <MiniMap
+          nodeColor={(n) => {
+            if (n.type === "llm") return "#7C3AED";
+            if (n.type === "uploadImage") return "#10B981";
+            if (n.type === "uploadVideo") return "#F59E0B";
+            return "#9CA3AF";
+          }}
+        />
       </ReactFlow>
     </div>
   );
