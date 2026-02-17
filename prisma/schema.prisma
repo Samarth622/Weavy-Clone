@@ -19,23 +19,30 @@ model Workflow {
 }
 
 model WorkflowRun {
-  id          String        @id @default(uuid())
+  id          String      @id @default(uuid())
   workflowId  String
-  workflow    Workflow      @relation(fields: [workflowId], references: [id])
+  workflow    Workflow    @relation(fields: [workflowId], references: [id])
   status      String
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime    @default(now())
+  startedAt   DateTime?   // ✅ ADD
   finishedAt  DateTime?
+  durationMs  Int?        // ✅ ADD
   nodeRuns    NodeRun[]
 }
 
+
 model NodeRun {
-  id            String       @id @default(uuid())
+  id            String      @id @default(uuid())
   workflowRunId String
-  workflowRun   WorkflowRun  @relation(fields: [workflowRunId], references: [id])
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id])
   nodeId        String
   status        String
   input         Json?
   output        Json?
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime    @default(now())
+  startedAt     DateTime?   // ✅ ADD
   finishedAt    DateTime?
+  durationMs    Int?        // ✅ ADD
 }
+
+

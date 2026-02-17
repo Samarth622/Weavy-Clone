@@ -26,6 +26,9 @@ export default function DashboardPage() {
   const [selectedNodeIds, setSelectedNodeIds] =
     useState<string[]>([]);
 
+  const [workflowDuration, setWorkflowDuration] =
+    useState<number | null>(null);
+
   const router = useRouter();
   const { user, isLoaded } = useUser();
 
@@ -84,6 +87,7 @@ export default function DashboardPage() {
     setWorkflowName("Untitled Workflow");
     setWorkflowId(null);
     setSelectedNodeIds([]);
+    setWorkflowDuration(null);
   };
 
   // -----------------------------
@@ -130,6 +134,7 @@ export default function DashboardPage() {
 
       const data = await res.json();
 
+      // 🔥 Update Nodes with duration
       setNodes((prev) =>
         prev.map((node) => {
           const nodeRun =
@@ -147,6 +152,8 @@ export default function DashboardPage() {
               result:
                 nodeRun?.output ??
                 node.data?.result,
+              durationMs:
+                nodeRun?.durationMs ?? null, // ✅
             },
           };
         })
@@ -159,13 +166,17 @@ export default function DashboardPage() {
         clearInterval(interval);
         setIsRunning(false);
 
+        setWorkflowDuration(
+          data.durationMs ?? null
+        );
+
         if (workflowId) {
           await loadRunsForWorkflow(
             workflowId
           );
         }
       }
-    }, 3000);
+    }, 2000);
   };
 
   // -----------------------------
@@ -190,6 +201,7 @@ export default function DashboardPage() {
     }
 
     setIsRunning(true);
+    setWorkflowDuration(null);
 
     setNodes((prev) =>
       prev.map((node) => ({
@@ -198,6 +210,7 @@ export default function DashboardPage() {
           ...node.data,
           status: "idle",
           result: null,
+          durationMs: null,
         },
       }))
     );
@@ -206,9 +219,9 @@ export default function DashboardPage() {
       mode === "full"
         ? { type: "full" }
         : {
-            type: "selected",
-            nodeIds: selectedNodeIds,
-          };
+          type: "selected",
+          nodeIds: selectedNodeIds,
+        };
 
     const res = await fetch(
       "/api/run-workflow",
@@ -242,6 +255,10 @@ export default function DashboardPage() {
   // REPLAY RUN
   // -----------------------------
   const handleReplayRun = (run: any) => {
+    setWorkflowDuration(
+      run.durationMs ?? null
+    );
+
     setNodes((prev) =>
       prev.map((node) => {
         const nodeRun =
@@ -258,6 +275,8 @@ export default function DashboardPage() {
               nodeRun?.status || "idle",
             result:
               nodeRun?.output || null,
+            durationMs:
+              nodeRun?.durationMs ?? null,
           },
         };
       })
@@ -273,6 +292,7 @@ export default function DashboardPage() {
       setEdges(workflow.edges);
       setWorkflowName(workflow.name);
       setWorkflowId(workflow.id);
+      setWorkflowDuration(null);
 
       setExpandedWorkflow(
         expandedWorkflow === workflow.id
@@ -304,9 +324,23 @@ export default function DashboardPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* LEFT SIDEBAR */}
-        <aside className="w-16 hover:w-64 transition-all bg-[#121212] border-r border-[#1f1f1f] overflow-hidden">
+        <aside
+          className="
+    group
+    w-16
+    hover:w-64
+    transition-all
+    duration-300
+    bg-[#121212]
+    border-r
+    border-[#1f1f1f]
+    overflow-hidden
+  "
+        >
           <Sidebar setNodes={setNodes} />
         </aside>
+
+
 
         {/* MAIN */}
         <main className="flex-1 flex flex-col bg-[#0f0f0f]">
@@ -322,20 +356,26 @@ export default function DashboardPage() {
               className="bg-transparent text-sm font-semibold text-gray-200 outline-none border-b border-transparent focus:border-[#7C3AED]"
             />
 
-            <div className="flex gap-3">
+            <div className="flex items-center gap-4">
+              {workflowDuration && (
+                <div className="text-xs text-gray-400">
+                  Total:{" "}
+                  {(workflowDuration / 1000).toFixed(
+                    2
+                  )}
+                  s
+                </div>
+              )}
+
               <button
-                onClick={
-                  handleNewWorkflow
-                }
+                onClick={handleNewWorkflow}
                 className="bg-[#1f1f1f] px-4 py-2 rounded-md"
               >
                 + New
               </button>
 
               <button
-                onClick={
-                  handleSaveWorkflow
-                }
+                onClick={handleSaveWorkflow}
                 className="bg-[#1f1f1f] px-4 py-2 rounded-md"
               >
                 Save
@@ -355,9 +395,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={() =>
-                  handleRun(
-                    "selected"
-                  )
+                  handleRun("selected")
                 }
                 disabled={isRunning}
                 className="bg-[#2a2a2a] px-4 py-2 rounded-md"
@@ -388,9 +426,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {savedWorkflows.map(
               (workflow) => (
-                <div
-                  key={workflow.id}
-                >
+                <div key={workflow.id}>
                   <div
                     onClick={() =>
                       handleWorkflowClick(
@@ -411,42 +447,54 @@ export default function DashboardPage() {
 
                   {expandedWorkflow ===
                     workflow.id && (
-                    <div className="ml-4 mt-2 space-y-2">
-                      {runsByWorkflow[
-                        workflow.id
-                      ]?.length ? (
-                        runsByWorkflow[
+                      <div className="ml-4 mt-2 space-y-2">
+                        {runsByWorkflow[
                           workflow.id
-                        ].map(
-                          (run: any) => (
-                            <div
-                              key={run.id}
-                              onClick={() =>
-                                handleReplayRun(
-                                  run
-                                )
-                              }
-                              className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
-                            >
-                              Run{" "}
-                              {run.id.slice(
-                                0,
-                                6
-                              )}{" "}
-                              —{" "}
-                              {
-                                run.status
-                              }
-                            </div>
+                        ]?.length ? (
+                          runsByWorkflow[
+                            workflow.id
+                          ].map(
+                            (run: any) => (
+                              <div
+                                key={run.id}
+                                onClick={() =>
+                                  handleReplayRun(
+                                    run
+                                  )
+                                }
+                                className="bg-[#181818] px-3 py-2 rounded text-xs text-gray-400 hover:bg-[#222] cursor-pointer"
+                              >
+                                Run{" "}
+                                {run.id.slice(
+                                  0,
+                                  6
+                                )}{" "}
+                                —{" "}
+                                {
+                                  run.status
+                                }
+                                {run.durationMs && (
+                                  <span className="ml-2 text-gray-500">
+                                    (
+                                    {(
+                                      run.durationMs /
+                                      1000
+                                    ).toFixed(
+                                      2
+                                    )}
+                                    s)
+                                  </span>
+                                )}
+                              </div>
+                            )
                           )
-                        )
-                      ) : (
-                        <div className="text-xs text-gray-500">
-                          No runs yet
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        ) : (
+                          <div className="text-xs text-gray-500">
+                            No runs yet
+                          </div>
+                        )}
+                      </div>
+                    )}
                 </div>
               )
             )}

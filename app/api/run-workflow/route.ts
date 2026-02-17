@@ -28,10 +28,10 @@ export async function POST(req: Request) {
       data: {
         workflowId,
         status: "running",
+        startedAt: new Date(), // ✅ start tracking workflow time
       },
     });
 
-    // 🔥 Run in background
     executeWorkflow(
       workflowRun.id,
       nodes,
@@ -63,6 +63,10 @@ async function executeWorkflow(
   }
 ) {
   const results: Record<string, any> = {};
+  const nodeStatus: Record<
+    string,
+    "success" | "error" | "skipped"
+  > = {};
 
   // ---------------------------------
   // 🔥 SELECTIVE EXECUTION FILTER
@@ -88,11 +92,14 @@ async function executeWorkflow(
       });
     };
 
-    executionScope.nodeIds.forEach((id) => {
+    executionScope.nodeIds.forEach((id: string) => {
       collectDependencies(id);
     });
 
-    nodesToRun = nodes.filter((n) => targetSet.has(n.id));
+    nodesToRun = nodes.filter((n) =>
+      targetSet.has(n.id)
+    );
+
     edgesToRun = edges.filter(
       (e) =>
         targetSet.has(e.source) &&
@@ -117,7 +124,7 @@ async function executeWorkflow(
   });
 
   // ---------------------------------
-  // 🔥 2️⃣ CYCLE DETECTION
+  // 2️⃣ CYCLE DETECTION
   // ---------------------------------
   const tempIncoming = { ...incoming };
   const queue = Object.keys(tempIncoming).filter(
@@ -147,9 +154,7 @@ async function executeWorkflow(
       },
     });
 
-    console.error(
-      "Workflow contains a cycle. Execution aborted."
-    );
+    console.error("Cycle detected.");
     return;
   }
 
@@ -161,7 +166,7 @@ async function executeWorkflow(
   );
 
   // ---------------------------------
-  // 4️⃣ Process Levels
+  // 4️⃣ Parallel Execution
   // ---------------------------------
   while (currentLevel.length > 0) {
     await Promise.all(
@@ -171,14 +176,47 @@ async function executeWorkflow(
         );
         if (!node) return;
 
+        const startTime = new Date();
+
         const nodeRun = await prisma.nodeRun.create({
           data: {
             workflowRunId: runId,
             nodeId,
             status: "running",
             input: node.data || {},
+            startedAt: startTime, // ✅ track node start
           },
         });
+
+        // 🔥 Failure Propagation
+        const parentEdges = edgesToRun.filter(
+          (e) => e.target === nodeId
+        );
+
+        const hasFailedParent = parentEdges.some(
+          (e) =>
+            nodeStatus[e.source] === "error" ||
+            nodeStatus[e.source] === "skipped"
+        );
+
+        if (hasFailedParent) {
+          nodeStatus[nodeId] = "skipped";
+
+          const finishedAt = new Date();
+
+          await prisma.nodeRun.update({
+            where: { id: nodeRun.id },
+            data: {
+              status: "skipped",
+              finishedAt,
+              durationMs:
+                finishedAt.getTime() -
+                startTime.getTime(),
+            },
+          });
+
+          return;
+        }
 
         try {
           const output = await executeSingleNode(
@@ -188,35 +226,42 @@ async function executeWorkflow(
           );
 
           results[nodeId] = output;
+          nodeStatus[nodeId] = "success";
+
+          const finishedAt = new Date();
 
           await prisma.nodeRun.update({
             where: { id: nodeRun.id },
             data: {
               status: "success",
               output,
-              finishedAt: new Date(),
+              finishedAt,
+              durationMs:
+                finishedAt.getTime() -
+                startTime.getTime(),
             },
           });
         } catch (error) {
-          console.error(
-            "Node execution error:",
-            error
-          );
+          console.error("Node error:", error);
+
+          nodeStatus[nodeId] = "error";
+
+          const finishedAt = new Date();
 
           await prisma.nodeRun.update({
             where: { id: nodeRun.id },
             data: {
               status: "error",
-              finishedAt: new Date(),
+              finishedAt,
+              durationMs:
+                finishedAt.getTime() -
+                startTime.getTime(),
             },
           });
         }
       })
     );
 
-    // ---------------------------------
-    // Prepare Next Level
-    // ---------------------------------
     const nextLevel: string[] = [];
 
     currentLevel.forEach((nodeId) => {
@@ -232,19 +277,32 @@ async function executeWorkflow(
   }
 
   // ---------------------------------
-  // 5️⃣ Finish Workflow
+  // 5️⃣ Final Workflow Status
   // ---------------------------------
+  const hasError = Object.values(
+    nodeStatus
+  ).includes("error");
+
+  const workflowFinishedAt = new Date();
+
+  const workflow = await prisma.workflowRun.findUnique({
+    where: { id: runId },
+  });
+
   await prisma.workflowRun.update({
     where: { id: runId },
     data: {
-      status: "success",
-      finishedAt: new Date(),
+      status: hasError ? "error" : "success",
+      finishedAt: workflowFinishedAt,
+      durationMs:
+        workflowFinishedAt.getTime() -
+        workflow!.startedAt!.getTime(),
     },
   });
 }
 
 /**
- * 🔥 Single Node Execution Logic
+ * 🔥 Single Node Logic
  */
 async function executeSingleNode(
   node: any,
@@ -309,7 +367,8 @@ async function executeSingleNode(
       (e) => e.target === node.id
     );
 
-    const video = results[parentEdge?.source!];
+    const video =
+      results[parentEdge?.source!];
 
     const handle =
       await extractFrameTask.trigger({
@@ -334,7 +393,8 @@ async function executeSingleNode(
       (e) => e.target === node.id
     );
 
-    const image = results[parentEdge?.source!];
+    const image =
+      results[parentEdge?.source!];
 
     const handle = await cropTask.trigger({
       image,
