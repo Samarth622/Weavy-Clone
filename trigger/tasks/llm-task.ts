@@ -8,7 +8,7 @@ export const llmTask = task({
   }) => {
     const { prompt, image } = payload;
 
-    const selectedModel = "gemini-2.5-flash";
+    const selectedModel = "gemini-3-flash-preview";
 
     let body: any;
 

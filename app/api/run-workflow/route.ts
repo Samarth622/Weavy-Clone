@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 🔥 Do NOT await — run in background
+    // 🔥 Run in background
     executeWorkflow(workflowRun.id, nodes, edges);
 
     return NextResponse.json({
@@ -67,17 +67,51 @@ async function executeWorkflow(
   });
 
   // -----------------------------
-  // 2️⃣ First Level (no dependencies)
+  // 🔥 2️⃣ CYCLE DETECTION
+  // -----------------------------
+  const tempIncoming = { ...incoming };
+  const queue = Object.keys(tempIncoming).filter(
+    (id) => tempIncoming[id] === 0
+  );
+
+  let processedCount = 0;
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!;
+    processedCount++;
+
+    adj[nodeId].forEach((child) => {
+      tempIncoming[child]--;
+      if (tempIncoming[child] === 0) {
+        queue.push(child);
+      }
+    });
+  }
+
+  if (processedCount !== nodes.length) {
+    await prisma.workflowRun.update({
+      where: { id: runId },
+      data: {
+        status: "error",
+        finishedAt: new Date(),
+      },
+    });
+
+    console.error("Workflow contains a cycle. Execution aborted.");
+    return;
+  }
+
+  // -----------------------------
+  // 3️⃣ First Level
   // -----------------------------
   let currentLevel = Object.keys(incoming).filter(
     (id) => incoming[id] === 0
   );
 
   // -----------------------------
-  // 3️⃣ Process Levels
+  // 4️⃣ Process Levels
   // -----------------------------
   while (currentLevel.length > 0) {
-    // 🚀 Execute all nodes in this level in parallel
     await Promise.all(
       currentLevel.map(async (nodeId) => {
         const node = nodes.find((n) => n.id === nodeId);
@@ -124,7 +158,7 @@ async function executeWorkflow(
     );
 
     // -----------------------------
-    // 4️⃣ Prepare Next Level
+    // Prepare Next Level
     // -----------------------------
     const nextLevel: string[] = [];
 
@@ -160,30 +194,18 @@ async function executeSingleNode(
   results: Record<string, any>,
   edges: any[]
 ) {
-  // -----------------------------
-  // TEXT NODE
-  // -----------------------------
   if (node.type === "prompt") {
     return node.data?.prompt || "";
   }
 
-  // -----------------------------
-  // UPLOAD IMAGE NODE
-  // -----------------------------
   if (node.type === "uploadImage") {
     return node.data?.image || null;
   }
 
-  // -----------------------------
-  // UPLOAD VIDEO NODE
-  // -----------------------------
   if (node.type === "uploadVideo") {
     return node.data?.video || null;
   }
 
-  // -----------------------------
-  // LLM NODE
-  // -----------------------------
   if (node.type === "llm") {
     const parentEdges = edges.filter(
       (e) => e.target === node.id
@@ -217,12 +239,13 @@ async function executeSingleNode(
 
     const run = await runs.poll(handle.id);
 
+    if (!run.isSuccess) {
+      throw new Error("LLM task failed");
+    }
+
     return run.output;
   }
 
-  // -----------------------------
-  // EXTRACT FRAME NODE
-  // -----------------------------
   if (node.type === "extract") {
     const parentEdge = edges.find(
       (e) => e.target === node.id
@@ -237,12 +260,13 @@ async function executeSingleNode(
 
     const run = await runs.poll(handle.id);
 
+    if (!run.isSuccess) {
+      throw new Error("Extract frame task failed");
+    }
+
     return run.output;
   }
 
-  // -----------------------------
-  // CROP NODE
-  // -----------------------------
   if (node.type === "crop") {
     const parentEdge = edges.find(
       (e) => e.target === node.id
@@ -256,6 +280,10 @@ async function executeSingleNode(
     });
 
     const run = await runs.poll(handle.id);
+
+    if (!run.isSuccess) {
+      throw new Error("Crop task failed");
+    }
 
     return run.output;
   }
